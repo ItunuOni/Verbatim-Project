@@ -14,35 +14,40 @@
       body { margin: 0; background-color: #0f172a; /* Verbatim Navy */ }
       #root { display: flex; flex-direction: column; min-height: 100vh; }
       
-      /* The Loading State */
+      /* The Loading Container */
       .app-loading {
         display: flex;
         justify-content: center;
         align-items: center;
         height: 100vh;
         width: 100vw;
-        position: absolute;
+        position: fixed;
         top: 0;
         left: 0;
         z-index: 9999;
+        background-color: #0f172a;
       }
       
-      .loading-logo {
-        height: 120px;
-        width: auto;
-        animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+      /* The Spinning Circle */
+      .spinner {
+        width: 50px;
+        height: 50px;
+        border: 4px solid rgba(255, 255, 255, 0.1);
+        border-left-color: #ff4d00; /* Verbatim Orange */
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
       }
 
-      @keyframes pulse {
-        0%, 100% { opacity: 1; transform: scale(1); }
-        50% { opacity: .8; transform: scale(0.95); }
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
       }
     </style>
   </head>
   <body>
     <div id="root">
       <div class="app-loading">
-        <img src="/logo.png" alt="Verbatim Loading..." class="loading-logo" />
+        <div class="spinner"></div>
       </div>
     </div>
     <script type="module" src="/src/main.jsx"></script>

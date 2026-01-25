@@ -19,38 +19,42 @@ const LandingPage = () => {
 
   return (
     <div className="min-h-screen bg-verbatim-navy text-white font-sans selection:bg-verbatim-orange selection:text-white overflow-x-hidden">
-      {/* Navigation - MASTER LOGO FIX (MOBILE OPTIMIZED) */}
+      {/* Navigation - TABLET & MOBILE OPTIMIZED */}
       <nav className="glass fixed w-full z-50 top-0 left-0 border-b border-white/10 backdrop-blur-xl">
-        {/* FIX: Changed h-32 to h-auto. Added flex-col for mobile stacking. Added py-4. */}
-        <div className="max-w-7xl mx-auto px-6 h-auto md:h-32 py-4 md:py-0 flex flex-col md:flex-row justify-between items-center gap-4">
+        {/* FIX APPLIED HERE: */}
+        {/* 1. 'h-auto': Flexible height for all devices */}
+        {/* 2. 'sm:flex-row': On Tablet (sm) and up, go SIDE-BY-SIDE. On Mobile, stack (flex-col). */}
+        {/* 3. 'py-4': Consistent padding */}
+        <div className="max-w-7xl mx-auto px-6 h-auto py-4 flex flex-col sm:flex-row justify-between items-center gap-4 sm:gap-0">
           
           {/* THE OFFICIAL LOGO BUTTON */}
-          <div className="flex items-center gap-6 group cursor-pointer" onClick={() => window.scrollTo({top: 0, behavior: 'smooth'})}>
+          <div className="flex items-center gap-4 sm:gap-6 group cursor-pointer" onClick={() => window.scrollTo({top: 0, behavior: 'smooth'})}>
             <div className="relative flex items-center justify-center">
               {/* Pro Glow Aura */}
               <div className="absolute -inset-4 bg-gradient-to-tr from-verbatim-orange to-pink-500 rounded-2xl blur-md opacity-0 group-hover:opacity-100 transition-all duration-500 shadow-[0_0_20px_rgba(255,77,0,0.4)]"></div>
               
-              {/* Your Official Logo (Master Sizing) */}
+              {/* Your Official Logo */}
               <img 
                 src={LOGO_PATH}
                 alt="Verbatim Logo" 
-                className="relative h-20 md:h-24 w-auto min-w-[120px] md:min-w-[140px] rounded-xl border-2 border-verbatim-orange bg-white p-1 transform group-hover:scale-110 transition-all duration-300 z-10 shadow-2xl object-contain"
+                className="relative h-16 sm:h-24 w-auto min-w-[100px] sm:min-w-[140px] rounded-xl border-2 border-verbatim-orange bg-white p-1 transform group-hover:scale-110 transition-all duration-300 z-10 shadow-2xl object-contain"
               />
             </div>
             <div className="flex flex-col -space-y-1">
-              <span className="text-2xl md:text-3xl font-black tracking-tighter italic group-hover:text-verbatim-orange transition-colors duration-300">
+              <span className="text-2xl sm:text-3xl font-black tracking-tighter italic group-hover:text-verbatim-orange transition-colors duration-300">
                 VERBATIM
               </span>
-              <span className="text-[10px] md:text-[11px] font-bold tracking-[0.3em] text-verbatim-orange opacity-90 uppercase">
+              <span className="text-[10px] sm:text-[11px] font-bold tracking-[0.3em] text-verbatim-orange opacity-90 uppercase">
                 Transcription Pro
               </span>
             </div>
           </div>
 
-          {/* FIX: Button is full width (w-full) on mobile, auto width on desktop */}
+          {/* LOGIN BUTTON */}
+          {/* FIX: w-full on mobile (easier tap), w-auto on Tablet/Desktop (professional look) */}
           <button 
             onClick={handleGoogleLogin}
-            className="w-full md:w-auto px-8 py-3 bg-verbatim-orange text-white font-bold rounded-full hover:bg-orange-600 transition-all shadow-[0_0_20px_rgba(255,77,0,0.4)] hover:scale-105 active:scale-95"
+            className="w-full sm:w-auto px-8 py-3 bg-verbatim-orange text-white font-bold rounded-full hover:bg-orange-600 transition-all shadow-[0_0_20px_rgba(255,77,0,0.4)] hover:scale-105 active:scale-95"
           >
             Login with Google
           </button>
@@ -58,7 +62,7 @@ const LandingPage = () => {
       </nav>
 
       {/* Hero Section */}
-      <header className="relative pt-48 md:pt-64 pb-20 px-6 overflow-hidden">
+      <header className="relative pt-48 sm:pt-64 pb-20 px-6 overflow-hidden">
         <div className="max-w-5xl mx-auto text-center relative z-10">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
             
