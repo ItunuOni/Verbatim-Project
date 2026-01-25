@@ -6,7 +6,7 @@ import { signOut } from 'firebase/auth';
 import { auth } from '../firebase';
 
 // --- CLOUD CONFIG (MASTER PRESERVED) ---
-const CLOUD_API_BASE = "https://laughing-parakeet-76g5x977rv7f746-8000.app.github.dev";
+const CLOUD_API_BASE = "https://verbatim-backend.onrender.com";
 
 const Dashboard = ({ user }) => {
   const [selectedFile, setSelectedFile] = useState(null);
