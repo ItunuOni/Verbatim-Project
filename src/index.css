@@ -1,0 +1,28 @@
+@import "tailwindcss";
+
+@theme {
+  /* Your Official Logo Colors */
+  --color-verbatim-navy: #000f30;
+  --color-verbatim-orange: #ff4d00;
+  --color-verbatim-light: #e0e6ed; /* A soft grey-blue for text */
+}
+
+body {
+  background-color: var(--color-verbatim-navy);
+  color: white;
+  font-family: 'Inter', sans-serif; /* Clean, modern font */
+}
+
+/* Glassmorphism Utilities */
+.glass {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.glass-card {
+  background: rgba(0, 15, 48, 0.7); /* Navy tint */
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 77, 0, 0.2); /* Subtle orange border */
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+}
