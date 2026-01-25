@@ -38,7 +38,6 @@ MODEL_NAME = "gemini-flash-latest"
 model = genai.GenerativeModel(MODEL_NAME)
 
 # --- 2. GLOBAL VOICE DATABASE (50+ Languages) ---
-# [Keep your existing VOICE_DB dictionary here exactly as it was]
 VOICE_DB = {
     "English (US)": [{"id": "en-US-GuyNeural", "name": "Guy (Male)"}, {"id": "en-US-JennyNeural", "name": "Jenny (Female)"}, {"id": "en-US-AriaNeural", "name": "Aria (Female)"}, {"id": "en-US-ChristopherNeural", "name": "Christopher (Male)"}, {"id": "en-US-EricNeural", "name": "Eric (Male)"}],
     "English (Nigeria)": [{"id": "en-NG-AbeoNeural", "name": "Abeo (Male)"}, {"id": "en-NG-EzinneNeural", "name": "Ezinne (Female)"}],
@@ -78,6 +77,7 @@ EMOTION_SETTINGS = {
 # --- 3. APP INITIALIZATION ---
 app = FastAPI()
 
+# --- CRITICAL MOBILE & CHROME FIX ---
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"], 

@@ -167,10 +167,13 @@ const Dashboard = ({ user }) => {
   const LOGO_PATH = "/logo.png";
 
   return (
-    <div className="min-h-screen bg-verbatim-navy text-white font-sans selection:bg-verbatim-orange">
+    // FIX 1: Added overflow-x-hidden to prevent horizontal scroll on mobile
+    <div className="min-h-screen bg-verbatim-navy text-white font-sans selection:bg-verbatim-orange overflow-x-hidden">
+      
       {/* PROFESSIONAL NAVBAR */}
       <nav className="border-b border-white/10 bg-verbatim-navy/50 backdrop-blur-xl sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-6 h-32 flex justify-between items-center">
+        {/* FIX 2: Changed to flex-col on mobile, row on desktop (md). Adjusted heights and padding. */}
+        <div className="max-w-7xl mx-auto px-4 md:px-6 h-auto md:h-32 py-4 md:py-0 flex flex-col md:flex-row justify-between items-center gap-4">
           
           <div className="flex items-center gap-6 cursor-pointer group relative" onClick={() => window.location.href = '/dashboard'}>
             <div className="relative flex items-center justify-center">
@@ -183,7 +186,7 @@ const Dashboard = ({ user }) => {
             </div>
           </div>
 
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-6 w-full md:w-auto justify-center">
             <button onClick={() => setShowHistory(true)} className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 rounded-full border border-white/10 transition-all text-sm font-bold uppercase tracking-wider">
                 <History size={16} className="text-verbatim-orange"/> History
             </button>
@@ -226,10 +229,11 @@ const Dashboard = ({ user }) => {
         )}
       </AnimatePresence>
 
-      <main className="max-w-7xl mx-auto px-6 py-12">
+      <main className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-12">
         {/* HERO UPLOAD */}
-        <div className="glass-card rounded-3xl p-12 text-center mb-12 border border-white/5 shadow-2xl bg-gradient-to-b from-white/5 to-transparent">
-          <h2 className="text-4xl font-black mb-4">Transform Your Media</h2>
+        {/* FIX 3: Reduced padding on mobile (p-6) vs desktop (p-12) */}
+        <div className="glass-card rounded-3xl p-6 md:p-12 text-center mb-12 border border-white/5 shadow-2xl bg-gradient-to-b from-white/5 to-transparent">
+          <h2 className="text-2xl md:text-4xl font-black mb-4">Transform Your Media</h2>
           
           <AnimatePresence>
             {error && (
@@ -241,22 +245,22 @@ const Dashboard = ({ user }) => {
             )}
           </AnimatePresence>
 
-          <p className="text-gray-400 mb-10 max-w-xl mx-auto text-lg">Upload audio or video. Let Verbatim handle the heavy lifting.</p>
+          <p className="text-gray-400 mb-10 max-w-xl mx-auto text-base md:text-lg">Upload audio or video. Let Verbatim handle the heavy lifting.</p>
           
-          <div onClick={() => fileInputRef.current.click()} className="group relative border-2 border-dashed border-verbatim-orange/20 hover:border-verbatim-orange/50 bg-white/5 rounded-3xl p-20 cursor-pointer transition-all duration-500 overflow-hidden">
+          <div onClick={() => fileInputRef.current.click()} className="group relative border-2 border-dashed border-verbatim-orange/20 hover:border-verbatim-orange/50 bg-white/5 rounded-3xl p-10 md:p-20 cursor-pointer transition-all duration-500 overflow-hidden">
             <div className="absolute inset-0 bg-verbatim-orange/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
             <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="audio/*,video/*" className="hidden" />
             <div className="flex flex-col items-center gap-6 relative z-10">
-              <div className="p-8 bg-verbatim-orange/10 rounded-full text-verbatim-orange group-hover:scale-110 group-hover:bg-verbatim-orange/20 transition-all duration-500 shadow-2xl">
-                {selectedFile ? <FileAudio size={64} /> : <Upload size={64} />}
+              <div className="p-6 md:p-8 bg-verbatim-orange/10 rounded-full text-verbatim-orange group-hover:scale-110 group-hover:bg-verbatim-orange/20 transition-all duration-500 shadow-2xl">
+                {selectedFile ? <FileAudio size={48} className="md:w-16 md:h-16" /> : <Upload size={48} className="md:w-16 md:h-16" />}
               </div>
-              <p className="text-3xl font-bold tracking-tight">{selectedFile ? selectedFile.name : "Drop media here"}</p>
-              <p className="text-sm text-gray-500 uppercase tracking-[0.2em] font-black">MP4 • MOV • MP3 • WAV</p>
+              <p className="text-xl md:text-3xl font-bold tracking-tight break-all">{selectedFile ? selectedFile.name : "Drop media here"}</p>
+              <p className="text-xs md:text-sm text-gray-500 uppercase tracking-[0.2em] font-black">MP4 • MOV • MP3 • WAV</p>
             </div>
           </div>
 
           {selectedFile && !isLoading && (
-            <button onClick={(e) => handleUpload(e)} className="mt-10 w-full max-w-md py-5 bg-verbatim-orange text-white font-black text-lg rounded-2xl hover:bg-orange-600 transition-all shadow-2xl uppercase tracking-widest">
+            <button onClick={(e) => handleUpload(e)} className="mt-10 w-full max-w-md py-4 md:py-5 bg-verbatim-orange text-white font-black text-lg rounded-2xl hover:bg-orange-600 transition-all shadow-2xl uppercase tracking-widest">
               Start Cloud Transcription
             </button>
           )}
@@ -267,7 +271,7 @@ const Dashboard = ({ user }) => {
                 <motion.div initial={{width: 0}} animate={{width: `${uploadProgress}%`}} className="bg-gradient-to-r from-verbatim-orange to-pink-500 h-full rounded-full" />
               </div>
               <div className="flex justify-between items-center mt-4">
-                <p className="text-sm font-black text-verbatim-orange uppercase tracking-[0.2em] animate-pulse">
+                <p className="text-xs md:text-sm font-black text-verbatim-orange uppercase tracking-[0.2em] animate-pulse">
                   {uploadProgress < 100 ? `Securing Assets... ${uploadProgress}%` : "AI Engine: Generating Insights..."}
                 </p>
                 <Loader2 className="animate-spin text-verbatim-orange" size={16} />
@@ -280,15 +284,15 @@ const Dashboard = ({ user }) => {
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
             
             {/* 1. FULL WIDTH TRANSCRIPT */}
-            <div className="glass-card p-10 rounded-3xl border border-white/10 shadow-2xl">
-              <div className="flex items-center justify-between mb-8">
+            <div className="glass-card p-6 md:p-10 rounded-3xl border border-white/10 shadow-2xl">
+              <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-8 gap-4">
                 <div className="flex items-center gap-3">
                     <div className="p-2 bg-verbatim-orange/20 rounded-lg"><Mic className="text-verbatim-orange" size={24} /></div>
-                    <h3 className="text-2xl font-black">Smart Transcript</h3>
+                    <h3 className="text-xl md:text-2xl font-black">Smart Transcript</h3>
                 </div>
-                <button onClick={() => downloadText(`${processingResults.filename}_transcript.txt`, processingResults.transcript)} className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-sm font-bold transition-all"><Download size={16}/> Save TXT</button>
+                <button onClick={() => downloadText(`${processingResults.filename}_transcript.txt`, processingResults.transcript)} className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-sm font-bold transition-all w-full md:w-auto justify-center"><Download size={16}/> Save TXT</button>
               </div>
-              <div className="bg-black/40 p-8 rounded-2xl text-gray-300 leading-relaxed max-h-[400px] overflow-y-auto font-mono text-sm border border-white/5 scrollbar-thin scrollbar-thumb-verbatim-orange">
+              <div className="bg-black/40 p-6 md:p-8 rounded-2xl text-gray-300 leading-relaxed max-h-[400px] overflow-y-auto font-mono text-xs md:text-sm border border-white/5 scrollbar-thin scrollbar-thumb-verbatim-orange">
                 {processingResults.transcript}
               </div>
             </div>
@@ -296,39 +300,39 @@ const Dashboard = ({ user }) => {
             {/* 2. SUMMARY & BLOG POST */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               {/* SUMMARY */}
-              <div className="glass-card p-8 rounded-2xl h-full flex flex-col border border-white/10 bg-white/[0.02]">
+              <div className="glass-card p-6 md:p-8 rounded-2xl h-full flex flex-col border border-white/10 bg-white/[0.02]">
                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-xl font-bold text-white flex items-center gap-2"><AlignLeft className="text-verbatim-orange" /> Summary</h3>
+                    <h3 className="text-lg md:text-xl font-bold text-white flex items-center gap-2"><AlignLeft className="text-verbatim-orange" /> Summary</h3>
                     <button onClick={() => downloadText(`${processingResults.filename}_summary.txt`, processingResults.summary)} className="p-2 bg-white/10 hover:bg-white/20 rounded-lg transition-all"><Download size={16}/></button>
                  </div>
-                 <div className="text-gray-300 leading-relaxed h-[500px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-verbatim-orange/30 text-lg">
+                 <div className="text-gray-300 leading-relaxed h-[400px] md:h-[500px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-verbatim-orange/30 text-base md:text-lg">
                     {processingResults.summary}
                  </div>
               </div>
               
               {/* BLOG POST */}
-              <div className="glass-card p-8 rounded-2xl h-full flex flex-col border border-white/10 bg-white/[0.02]">
+              <div className="glass-card p-6 md:p-8 rounded-2xl h-full flex flex-col border border-white/10 bg-white/[0.02]">
                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-xl font-bold text-white flex items-center gap-2"><FileText className="text-verbatim-orange" /> Blog Post</h3>
+                    <h3 className="text-lg md:text-xl font-bold text-white flex items-center gap-2"><FileText className="text-verbatim-orange" /> Blog Post</h3>
                     <button onClick={() => downloadText(`${processingResults.filename}_blog.txt`, processingResults.blog_post)} className="p-2 bg-white/10 hover:bg-white/20 rounded-lg transition-all"><Download size={16}/></button>
                  </div>
-                 <div className="text-gray-300 leading-relaxed whitespace-pre-line h-[500px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-verbatim-orange/30">
+                 <div className="text-gray-300 leading-relaxed whitespace-pre-line h-[400px] md:h-[500px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-verbatim-orange/30">
                     {processingResults.blog_post || "No blog post generated."}
                  </div>
               </div>
             </div>
 
             {/* 3. GLOBAL STUDIO */}
-            <div className="glass-card p-10 rounded-3xl border border-verbatim-orange/30 bg-gradient-to-br from-verbatim-navy to-black relative overflow-hidden">
+            <div className="glass-card p-6 md:p-10 rounded-3xl border border-verbatim-orange/30 bg-gradient-to-br from-verbatim-navy to-black relative overflow-hidden">
               <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none"><Globe size={200} className="text-verbatim-orange" /></div>
               
               <div className="relative z-10">
                 <div className="mb-10 border-b border-white/10 pb-6">
-                  <h3 className="text-3xl font-black text-white flex items-center gap-4">
-                    <span className="p-3 bg-pink-500/20 rounded-xl text-pink-400 shadow-lg shadow-pink-500/20"><Globe size={32} /></span>
+                  <h3 className="text-2xl md:text-3xl font-black text-white flex items-center gap-4">
+                    <span className="p-3 bg-pink-500/20 rounded-xl text-pink-400 shadow-lg shadow-pink-500/20"><Globe size={24} className="md:w-8 md:h-8" /></span>
                     Global Localization Studio
                   </h3>
-                  <p className="text-gray-400 mt-2 ml-16 text-lg">Translate, Dub, and Adapt your content for a global audience.</p>
+                  <p className="text-gray-400 mt-2 md:ml-16 text-sm md:text-lg">Translate, Dub, and Adapt your content for a global audience.</p>
                 </div>
 
                 <AnimatePresence>
@@ -397,8 +401,8 @@ const Dashboard = ({ user }) => {
                       {isVoiceLoading ? <><Loader2 className="animate-spin" /> Dubbing & Translating...</> : <><Play fill="currentColor" /> Generate Global Audio</>}
                     </button>
                   ) : (
-                    <div className="w-full animate-fade-in bg-black/40 p-8 rounded-2xl border border-green-500/30">
-                      <div className="flex items-center justify-between mb-6">
+                    <div className="w-full animate-fade-in bg-black/40 p-6 md:p-8 rounded-2xl border border-green-500/30">
+                      <div className="flex flex-col md:flex-row items-center justify-between mb-6 gap-2">
                         <p className="text-green-400 font-bold flex items-center gap-2 text-lg"><CheckCircle size={24} /> Audio Asset Ready ({targetLanguage})</p>
                         <button onClick={() => setGeneratedAudio(null)} className="text-xs text-gray-400 hover:text-white underline">Generate New Version</button>
                       </div>
