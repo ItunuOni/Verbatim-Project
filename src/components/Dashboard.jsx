@@ -403,12 +403,23 @@ const Dashboard = ({ user }) => {
                         <button onClick={() => setGeneratedAudio(null)} className="text-xs text-gray-400 hover:text-white underline">Generate New Version</button>
                       </div>
                       <audio controls src={generatedAudio} className="w-full mb-8 h-12" autoPlay />
+                      
+                      {/* TRANSLATION SECTION - UPGRADED WITH DOWNLOAD */}
                       {translatedText && (
                         <div className="text-left">
-                          <p className="text-xs text-gray-500 uppercase font-bold mb-3 tracking-widest border-b border-white/10 pb-2">Translated Script ({targetLanguage})</p>
+                          <div className="flex items-center justify-between border-b border-white/10 pb-2 mb-3">
+                            <p className="text-xs text-gray-500 uppercase font-bold tracking-widest">Translated Script ({targetLanguage})</p>
+                            <button 
+                                onClick={() => downloadText(`translation_${targetLanguage}.txt`, translatedText)} 
+                                className="flex items-center gap-1 text-xs font-bold text-verbatim-orange hover:text-white transition-colors"
+                            >
+                                <Download size={12}/> SAVE TXT
+                            </button>
+                          </div>
                           <div className="bg-black/20 p-6 rounded-xl text-gray-300 max-h-60 overflow-y-auto whitespace-pre-wrap border border-white/5 font-mono text-sm leading-relaxed">{translatedText}</div>
                         </div>
                       )}
+
                     </div>
                   )}
                 </div>
