@@ -12,26 +12,19 @@ function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Listen for login state changes
+    // Listen for Firebase login/logout changes
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
-      // We force the spinner to stay for 1 second so it looks professional
-      setTimeout(() => setLoading(false), 1000); 
+      setLoading(false);
     });
     return () => unsubscribe();
   }, []);
 
-  // --- THIS IS THE ROLLING CIRCLE SECTION ---
+  // Show a professional spinner while checking if user is logged in
   if (loading) {
     return (
-      <div className="min-h-screen bg-verbatim-navy flex flex-col items-center justify-center text-white">
-        {/* The Spinner */}
-        <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-verbatim-orange mb-6 shadow-[0_0_20px_rgba(255,77,0,0.6)]"></div>
-        
-        {/* Optional Branding Text */}
-        <p className="text-verbatim-orange font-bold text-xl animate-pulse tracking-[0.3em]">
-          VERBATIM
-        </p>
+      <div className="min-h-screen bg-verbatim-navy flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-verbatim-orange shadow-[0_0_15px_rgba(255,77,0,0.5)]"></div>
       </div>
     );
   }
@@ -39,17 +32,11 @@ function App() {
   return (
     <Router>
       <Routes>
-        {/* If user is NOT logged in, show Landing Page */}
-        <Route 
-          path="/" 
-          element={!user ? <LandingPage /> : <Navigate to="/dashboard" />} 
-        />
-
-        {/* Protected Route: Only show Dashboard if user is logged in */}
-        <Route 
-          path="/dashboard" 
-          element={user ? <Dashboard user={user} /> : <Navigate to="/" />} 
-        />
+        {/* If not logged in, show Landing. If logged in, go to Dashboard */}
+        <Route path="/" element={!user ? <LandingPage /> : <Navigate to="/dashboard" />} />
+        
+        {/* Protected Dashboard Route */}
+        <Route path="/dashboard" element={user ? <Dashboard user={user} /> : <Navigate to="/" />} />
       </Routes>
     </Router>
   );

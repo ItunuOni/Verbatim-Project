@@ -14,19 +14,38 @@ const LandingPage = () => {
     }
   };
 
+  // --- PATH TO YOUR ACTUAL LOGO ---
+  const LOGO_PATH = "/logo.png";
+
   return (
     <div className="min-h-screen bg-verbatim-navy text-white font-sans selection:bg-verbatim-orange selection:text-white">
-      {/* Navigation */}
-      <nav className="glass fixed w-full z-50 top-0 left-0 border-b border-white/10">
-        <div className="max-w-7xl mx-auto px-6 h-24 flex justify-between items-center">
-          <div className="flex items-center gap-4">
-            <img 
-              src="/logo.jpg" 
-              alt="Verbatim" 
-              className="h-16 w-auto rounded-xl border-2 border-verbatim-orange shadow-[0_0_15px_rgba(255,77,0,0.3)] bg-white p-1 object-contain" 
-            />
-            <span className="text-3xl font-bold tracking-tight text-white hidden sm:block">Verbatim</span>
+      {/* Navigation - MASTER LOGO FIX */}
+      <nav className="glass fixed w-full z-50 top-0 left-0 border-b border-white/10 backdrop-blur-xl">
+        <div className="max-w-7xl mx-auto px-6 h-32 flex justify-between items-center">
+          
+          {/* THE OFFICIAL LOGO BUTTON */}
+          <div className="flex items-center gap-6 group cursor-pointer" onClick={() => window.scrollTo({top: 0, behavior: 'smooth'})}>
+            <div className="relative flex items-center justify-center">
+              {/* Pro Glow Aura */}
+              <div className="absolute -inset-4 bg-gradient-to-tr from-verbatim-orange to-pink-500 rounded-2xl blur-md opacity-0 group-hover:opacity-100 transition-all duration-500 shadow-[0_0_20px_rgba(255,77,0,0.4)]"></div>
+              
+              {/* Your Official Logo (Master Sizing) */}
+              <img 
+                src={LOGO_PATH}
+                alt="Verbatim Logo" 
+                className="relative h-24 w-auto min-w-[140px] rounded-xl border-2 border-verbatim-orange bg-white p-1 transform group-hover:scale-110 transition-all duration-300 z-10 shadow-2xl object-contain"
+              />
+            </div>
+            <div className="flex flex-col -space-y-1">
+              <span className="text-3xl font-black tracking-tighter italic group-hover:text-verbatim-orange transition-colors duration-300">
+                VERBATIM
+              </span>
+              <span className="text-[11px] font-bold tracking-[0.3em] text-verbatim-orange opacity-90 uppercase">
+                Transcription Pro
+              </span>
+            </div>
           </div>
+
           <button 
             onClick={handleGoogleLogin}
             className="px-8 py-3 bg-verbatim-orange text-white font-bold rounded-full hover:bg-orange-600 transition-all shadow-[0_0_20px_rgba(255,77,0,0.4)] hover:scale-105 active:scale-95"
@@ -37,7 +56,7 @@ const LandingPage = () => {
       </nav>
 
       {/* Hero Section */}
-      <header className="relative pt-40 pb-20 px-6 overflow-hidden">
+      <header className="relative pt-64 pb-20 px-6 overflow-hidden">
         <div className="max-w-5xl mx-auto text-center relative z-10">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
             
@@ -54,7 +73,7 @@ const LandingPage = () => {
             </h1>
 
             <p className="text-2xl text-verbatim-light mb-12 max-w-3xl mx-auto leading-relaxed font-light">
-              The world's most powerful localization engine—now running on your desktop. Turn raw media into polished, multi-format assets that break every language barrier.
+              The world's most powerful localization engine—now running in the cloud. Turn raw media into polished, multi-format assets that break every language barrier.
             </p>
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-6">
@@ -68,11 +87,10 @@ const LandingPage = () => {
           </motion.div>
         </div>
         
-        {/* Background Glow */}
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-verbatim-orange/15 rounded-full blur-[150px] -z-10 animate-pulse"></div>
       </header>
 
-      {/* UPDATED Features Grid */}
+      {/* Features Grid */}
       <section className="py-20 px-6 bg-black/20">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
@@ -82,63 +100,34 @@ const LandingPage = () => {
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {[
-              { 
-                icon: <Mic size={32} />, 
-                title: "Precision Transcription", 
-                desc: "Convert speech to text with 99% accuracy using Gemini 2.0 Flash. Supports complex accents and technical jargon." 
-              },
-              { 
-                icon: <Globe size={32} />, 
-                title: "50+ Languages", 
-                desc: "Instantly translate your content into Spanish, French, Hindi, Nigerian English, and 46+ other languages." 
-              },
-              { 
-                icon: <Volume2 size={32} />, 
-                title: "Emotional AI Voiceovers", 
-                desc: "Generate human-like speech with controllable emotions—Excited, Sad, Whispering, and more." 
-              },
-              { 
-                icon: <Layers size={32} />, 
-                title: "Multi-Format Output", 
-                desc: "Get Blog Posts, Summaries, and Transcripts automatically generated from a single upload." 
-              },
-              { 
-                icon: <Zap size={32} />, 
-                title: "Video-to-Audio Optimization", 
-                desc: "Smart extraction engine processes video files at 40x speed by isolating audio tracks." 
-              },
-              { 
-                icon: <Radio size={32} />, 
-                title: "Live Transcription (Soon)", 
-                desc: "Coming in v2.0: Real-time speech-to-text for live meetings and broadcasts.",
-                isComingSoon: true 
-              }
+              { icon: <Mic size={32} />, title: "Precision Transcription", desc: "Convert speech to text with 99% accuracy using Gemini 2.0 Flash." },
+              { icon: <Globe size={32} />, title: "50+ Languages", desc: "Instantly translate your content into Spanish, French, Hindi, and more." },
+              { icon: <Volume2 size={32} />, title: "Emotional AI Voiceovers", desc: "Generate human-like speech with controllable emotions." },
+              { icon: <Layers size={32} />, title: "Multi-Format Output", desc: "Get Blog Posts and Summaries automatically generated." },
+              { icon: <Zap size={32} />, title: "Video-to-Audio", desc: "Smart extraction engine processes video files at 40x speed." },
+              { icon: <Radio size={32} />, title: "Live Transcription", desc: "Coming in v2.0: Real-time speech-to-text for live broadcasts.", isComingSoon: true }
             ].map((feature, i) => (
               <motion.div 
                 key={i} 
-                initial={{ opacity: 0, y: 20 }} 
-                whileInView={{ opacity: 1, y: 0 }} 
-                transition={{ delay: i * 0.1 }}
-                className={`glass-card p-8 rounded-2xl hover:border-verbatim-orange/50 transition-colors relative overflow-hidden ${feature.isComingSoon ? 'opacity-80' : ''}`}
+                className={`glass-card p-8 rounded-2xl border border-white/5 hover:border-verbatim-orange/50 transition-all relative overflow-hidden ${feature.isComingSoon ? 'opacity-80' : ''}`}
               >
                 {feature.isComingSoon && (
-                   <div className="absolute top-4 right-4 bg-verbatim-orange/20 text-verbatim-orange text-xs font-bold px-3 py-1 rounded-full border border-verbatim-orange/30">
+                   <div className="absolute top-4 right-4 bg-verbatim-orange/20 text-verbatim-orange text-[10px] font-bold px-3 py-1 rounded-full border border-verbatim-orange/30">
                      COMING SOON
                    </div>
                 )}
                 <div className="mb-6 text-verbatim-orange">{feature.icon}</div>
                 <h3 className="text-xl font-bold mb-3">{feature.title}</h3>
-                <p className="text-verbatim-light leading-relaxed">{feature.desc}</p>
+                <p className="text-verbatim-light leading-relaxed text-sm">{feature.desc}</p>
               </motion.div>
             ))}
           </div>
         </div>
       </section>
 
-       {/* Footer */}
-       <footer className="py-8 text-center text-verbatim-light border-t border-white/5 text-sm">
-         <p>© 2026 Verbatim. Built with Gemini & React.</p>
-       </footer>
+      <footer className="py-8 text-center text-verbatim-light border-t border-white/5 text-sm">
+        <p>© 2026 Verbatim. Built with Gemini & React.</p>
+      </footer>
     </div>
   );
 };

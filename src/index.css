@@ -1,19 +1,18 @@
-@import "tailwindcss";
+/* 1. Correct Tailwind v3 Directives */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-@theme {
-  /* Your Official Logo Colors */
-  --color-verbatim-navy: #000f30;
-  --color-verbatim-orange: #ff4d00;
-  --color-verbatim-light: #e0e6ed; /* A soft grey-blue for text */
-}
-
+/* 2. Your Official Theme & Body Styles */
 body {
-  background-color: var(--color-verbatim-navy);
+  background-color: #000f30; /* Your Verbatim Navy */
   color: white;
-  font-family: 'Inter', sans-serif; /* Clean, modern font */
+  font-family: 'Inter', sans-serif;
+  margin: 0;
+  padding: 0;
 }
 
-/* Glassmorphism Utilities */
+/* 3. Glassmorphism Utilities */
 .glass {
   background: rgba(255, 255, 255, 0.05);
   backdrop-filter: blur(10px);
@@ -26,3 +25,7 @@ body {
   border: 1px solid rgba(255, 77, 0, 0.2); /* Subtle orange border */
   box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
 }
+
+/* Custom Color Classes for Tailwind v3 */
+.text-verbatim-orange { color: #ff4d00; }
+.bg-verbatim-navy { background-color: #000f30; }
