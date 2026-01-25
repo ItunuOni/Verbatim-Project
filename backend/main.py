@@ -77,7 +77,6 @@ EMOTION_SETTINGS = {
 # --- 3. APP INITIALIZATION ---
 app = FastAPI()
 
-# --- CRITICAL MOBILE & CHROME FIX ---
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"], 
@@ -197,11 +196,10 @@ async def process_media(file: UploadFile, user_id: Annotated[str, Form()]):
         print(f"🚀 Verbatim Engine: Analyzing {file.filename}...")
         media_file = genai.upload_file(path=str(path_to_upload))
         
-        # Note: We stick to plain text Transcript for stability first. 
-        # SRT timestamps require a complex prompt change that we will do later if needed.
+        # UPDATED PROMPT: STRICTLY FORBIDS TIMESTAMPS
         response = model.generate_content([
             media_file,
-            "Provide: 1. Full Transcript. 2. Blog Post (500 words). 3. Summary (150 words). Format with headings: 'Transcript', 'Blog Post', 'Summary'."
+            "Provide: 1. Full Transcript (Do NOT include timestamps, timecodes, or speaker labels. Return ONLY the clean spoken text). 2. Blog Post (500 words). 3. Summary (150 words). Format with headings: 'Transcript', 'Blog Post', 'Summary'."
         ])
 
         full_text = response.text

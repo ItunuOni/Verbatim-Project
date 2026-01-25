@@ -167,12 +167,12 @@ const Dashboard = ({ user }) => {
   const LOGO_PATH = "/logo.png";
 
   return (
-    // FIX 1: Added overflow-x-hidden to prevent horizontal scroll on mobile
+    // FIX: Added overflow-x-hidden to prevent horizontal scroll on mobile
     <div className="min-h-screen bg-verbatim-navy text-white font-sans selection:bg-verbatim-orange overflow-x-hidden">
       
       {/* PROFESSIONAL NAVBAR */}
       <nav className="border-b border-white/10 bg-verbatim-navy/50 backdrop-blur-xl sticky top-0 z-50">
-        {/* FIX 2: Changed to flex-col on mobile, row on desktop (md). Adjusted heights and padding. */}
+        {/* FIX: Changed to flex-col on mobile, row on desktop (md). Adjusted heights and padding. */}
         <div className="max-w-7xl mx-auto px-4 md:px-6 h-auto md:h-32 py-4 md:py-0 flex flex-col md:flex-row justify-between items-center gap-4">
           
           <div className="flex items-center gap-6 cursor-pointer group relative" onClick={() => window.location.href = '/dashboard'}>
@@ -231,7 +231,7 @@ const Dashboard = ({ user }) => {
 
       <main className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-12">
         {/* HERO UPLOAD */}
-        {/* FIX 3: Reduced padding on mobile (p-6) vs desktop (p-12) */}
+        {/* FIX: Reduced padding on mobile (p-6) vs desktop (p-12) */}
         <div className="glass-card rounded-3xl p-6 md:p-12 text-center mb-12 border border-white/5 shadow-2xl bg-gradient-to-b from-white/5 to-transparent">
           <h2 className="text-2xl md:text-4xl font-black mb-4">Transform Your Media</h2>
           
@@ -292,7 +292,8 @@ const Dashboard = ({ user }) => {
                 </div>
                 <button onClick={() => downloadText(`${processingResults.filename}_transcript.txt`, processingResults.transcript)} className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-sm font-bold transition-all w-full md:w-auto justify-center"><Download size={16}/> Save TXT</button>
               </div>
-              <div className="bg-black/40 p-6 md:p-8 rounded-2xl text-gray-300 leading-relaxed max-h-[400px] overflow-y-auto font-mono text-xs md:text-sm border border-white/5 scrollbar-thin scrollbar-thumb-verbatim-orange">
+              {/* FIX: Added break-words and whitespace-pre-wrap to force wrapping on mobile */}
+              <div className="bg-black/40 p-6 md:p-8 rounded-2xl text-gray-300 leading-relaxed max-h-[400px] overflow-y-auto font-mono text-xs md:text-sm border border-white/5 scrollbar-thin scrollbar-thumb-verbatim-orange break-words whitespace-pre-wrap">
                 {processingResults.transcript}
               </div>
             </div>
