@@ -169,14 +169,15 @@ const Dashboard = ({ user }) => {
   return (
     <div className="min-h-screen bg-verbatim-navy text-white font-sans selection:bg-verbatim-orange overflow-x-hidden">
       
-      {/* PROFESSIONAL NAVBAR */}
-      <nav className="border-b border-white/10 bg-verbatim-navy/50 backdrop-blur-xl sticky top-0 z-50">
+      {/* PROFESSIONAL NAVBAR - FIXED POSITIONING FIX */}
+      {/* Changed 'sticky' to 'fixed w-full top-0 z-50' to guarantee visibility */}
+      <nav className="fixed w-full top-0 left-0 z-50 border-b border-white/10 bg-verbatim-navy/90 backdrop-blur-xl transition-all">
         <div className="max-w-7xl mx-auto px-4 md:px-6 h-auto md:h-32 py-4 md:py-0 flex flex-col md:flex-row justify-between items-center gap-4">
           
           <div className="flex items-center gap-6 cursor-pointer group relative" onClick={() => window.location.href = '/dashboard'}>
             <div className="relative flex items-center justify-center">
               <div className="absolute -inset-4 bg-gradient-to-tr from-verbatim-orange to-pink-500 rounded-2xl blur-md opacity-0 group-hover:opacity-100 transition-all duration-500 shadow-[0_0_20px_rgba(255,77,0,0.4)]"></div>
-              {/* OPTIMIZED LOGO: Added decoding="sync" and explicit dimensions to prevent layout shift */}
+              {/* OPTIMIZED LOGO */}
               <img 
                 src={LOGO_PATH} 
                 alt="Verbatim Logo" 
@@ -213,7 +214,10 @@ const Dashboard = ({ user }) => {
             <>
                 <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} onClick={() => setShowHistory(false)} className="fixed inset-0 bg-black/60 z-[60] backdrop-blur-sm" />
                 <motion.div initial={{x: "100%"}} animate={{x: 0}} exit={{x: "100%"}} className="fixed top-0 right-0 h-full w-full md:w-96 bg-verbatim-navy border-l border-white/10 z-[70] shadow-2xl p-6 overflow-y-auto">
-                    <div className="flex items-center justify-between mb-8">
+                    {/* SPACER FOR FIXED HEADER IN SIDEBAR */}
+                    <div className="h-20 md:hidden"></div> 
+                    
+                    <div className="flex items-center justify-between mb-8 pt-10 md:pt-0">
                         <h3 className="text-2xl font-black flex items-center gap-2"><History className="text-verbatim-orange"/> Project History</h3>
                         <button onClick={() => setShowHistory(false)}><X className="text-gray-400 hover:text-white" /></button>
                     </div>
@@ -237,7 +241,8 @@ const Dashboard = ({ user }) => {
         )}
       </AnimatePresence>
 
-      <main className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-12">
+      {/* MAIN CONTENT - ADDED PADDING TO COMPENSATE FOR FIXED HEADER */}
+      <main className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-12 pt-48 md:pt-40">
         {/* HERO UPLOAD */}
         <div className="glass-card rounded-3xl p-6 md:p-12 text-center mb-12 border border-white/5 shadow-2xl bg-gradient-to-b from-white/5 to-transparent">
           <h2 className="text-2xl md:text-4xl font-black mb-4">Transform Your Media</h2>
