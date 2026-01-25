@@ -18,10 +18,11 @@ const LandingPage = () => {
   const LOGO_PATH = "/logo.png";
 
   return (
-    <div className="min-h-screen bg-verbatim-navy text-white font-sans selection:bg-verbatim-orange selection:text-white">
-      {/* Navigation - MASTER LOGO FIX */}
+    <div className="min-h-screen bg-verbatim-navy text-white font-sans selection:bg-verbatim-orange selection:text-white overflow-x-hidden">
+      {/* Navigation - MASTER LOGO FIX (MOBILE OPTIMIZED) */}
       <nav className="glass fixed w-full z-50 top-0 left-0 border-b border-white/10 backdrop-blur-xl">
-        <div className="max-w-7xl mx-auto px-6 h-32 flex justify-between items-center">
+        {/* FIX: Changed h-32 to h-auto. Added flex-col for mobile stacking. Added py-4. */}
+        <div className="max-w-7xl mx-auto px-6 h-auto md:h-32 py-4 md:py-0 flex flex-col md:flex-row justify-between items-center gap-4">
           
           {/* THE OFFICIAL LOGO BUTTON */}
           <div className="flex items-center gap-6 group cursor-pointer" onClick={() => window.scrollTo({top: 0, behavior: 'smooth'})}>
@@ -33,22 +34,23 @@ const LandingPage = () => {
               <img 
                 src={LOGO_PATH}
                 alt="Verbatim Logo" 
-                className="relative h-24 w-auto min-w-[140px] rounded-xl border-2 border-verbatim-orange bg-white p-1 transform group-hover:scale-110 transition-all duration-300 z-10 shadow-2xl object-contain"
+                className="relative h-20 md:h-24 w-auto min-w-[120px] md:min-w-[140px] rounded-xl border-2 border-verbatim-orange bg-white p-1 transform group-hover:scale-110 transition-all duration-300 z-10 shadow-2xl object-contain"
               />
             </div>
             <div className="flex flex-col -space-y-1">
-              <span className="text-3xl font-black tracking-tighter italic group-hover:text-verbatim-orange transition-colors duration-300">
+              <span className="text-2xl md:text-3xl font-black tracking-tighter italic group-hover:text-verbatim-orange transition-colors duration-300">
                 VERBATIM
               </span>
-              <span className="text-[11px] font-bold tracking-[0.3em] text-verbatim-orange opacity-90 uppercase">
+              <span className="text-[10px] md:text-[11px] font-bold tracking-[0.3em] text-verbatim-orange opacity-90 uppercase">
                 Transcription Pro
               </span>
             </div>
           </div>
 
+          {/* FIX: Button is full width (w-full) on mobile, auto width on desktop */}
           <button 
             onClick={handleGoogleLogin}
-            className="px-8 py-3 bg-verbatim-orange text-white font-bold rounded-full hover:bg-orange-600 transition-all shadow-[0_0_20px_rgba(255,77,0,0.4)] hover:scale-105 active:scale-95"
+            className="w-full md:w-auto px-8 py-3 bg-verbatim-orange text-white font-bold rounded-full hover:bg-orange-600 transition-all shadow-[0_0_20px_rgba(255,77,0,0.4)] hover:scale-105 active:scale-95"
           >
             Login with Google
           </button>
@@ -56,7 +58,7 @@ const LandingPage = () => {
       </nav>
 
       {/* Hero Section */}
-      <header className="relative pt-64 pb-20 px-6 overflow-hidden">
+      <header className="relative pt-48 md:pt-64 pb-20 px-6 overflow-hidden">
         <div className="max-w-5xl mx-auto text-center relative z-10">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
             
@@ -65,14 +67,14 @@ const LandingPage = () => {
               v1.0 Released Globally
             </span>
 
-            <h1 className="text-6xl md:text-8xl font-extrabold mb-8 leading-tighter tracking-tight">
+            <h1 className="text-5xl md:text-8xl font-extrabold mb-8 leading-tight md:leading-tighter tracking-tight">
               Speak Locally. <br />
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-white via-verbatim-orange to-orange-400">
                 Resonate Globally.
               </span>
             </h1>
 
-            <p className="text-2xl text-verbatim-light mb-12 max-w-3xl mx-auto leading-relaxed font-light">
+            <p className="text-xl md:text-2xl text-verbatim-light mb-12 max-w-3xl mx-auto leading-relaxed font-light">
               The world's most powerful localization engine—now running in the cloud. Turn raw media into polished, multi-format assets that break every language barrier.
             </p>
 
@@ -94,7 +96,7 @@ const LandingPage = () => {
       <section className="py-20 px-6 bg-black/20">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold mb-4">Everything You Need to Go Global</h2>
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">Everything You Need to Go Global</h2>
             <p className="text-verbatim-light text-lg">From raw audio & video to emotional AI dubbing in minutes.</p>
           </div>
           

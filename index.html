@@ -4,15 +4,47 @@
     <meta charset="UTF-8" />
     
     <link rel="preload" as="image" href="/logo.png" />
-    
     <link rel="icon" type="image/png" href="/logo.png" />
     
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     
     <title>Verbatim - Transcription Pro</title>
+
+    <style>
+      body { margin: 0; background-color: #0f172a; /* Verbatim Navy */ }
+      #root { display: flex; flex-direction: column; min-height: 100vh; }
+      
+      /* The Loading State */
+      .app-loading {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        width: 100vw;
+        position: absolute;
+        top: 0;
+        left: 0;
+        z-index: 9999;
+      }
+      
+      .loading-logo {
+        height: 120px;
+        width: auto;
+        animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+      }
+
+      @keyframes pulse {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: .8; transform: scale(0.95); }
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div class="app-loading">
+        <img src="/logo.png" alt="Verbatim Loading..." class="loading-logo" />
+      </div>
+    </div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
