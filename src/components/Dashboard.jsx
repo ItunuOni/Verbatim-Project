@@ -6,12 +6,12 @@ import {
   FileText, AlignLeft, Mic, Globe, Play, Languages, User, Cpu, 
   XCircle, History, Download, ChevronRight, X 
 } from 'lucide-react';
-import { Link } from 'react-router-dom'; // STEP 1: ADDED LINK IMPORT
+import { Link } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import { auth } from '../firebase';
 
 // --- CLOUD CONFIG (MASTER PRESERVED) ---
-const CLOUD_API_BASE = "https://verbatim-backend.onrender.com"; // VERIFIED RENDER URL
+const CLOUD_API_BASE = "https://verbatim-backend.onrender.com";
 
 const Dashboard = ({ user }) => {
   const [selectedFile, setSelectedFile] = useState(null);
@@ -424,9 +424,13 @@ const Dashboard = ({ user }) => {
         )}
       </main>
 
-      {/* FLOATING VERBATIM BLOG BUTTON - STEP 2: PLACEMENT BEFORE FINAL DIV */}
+      {/* FLOATING VERBATIM BLOG BUTTON - UPDATED TO SEND DATA */}
       <Link 
         to="/blog" 
+        state={{ 
+          blogContent: processingResults?.blog_post, 
+          blogTitle: processingResults ? `Insights: ${processingResults.filename}` : "VBT Blog" 
+        }}
         className="fixed bottom-8 right-8 z-[100] group flex items-center gap-4 bg-verbatim-navy/90 backdrop-blur-xl border border-verbatim-orange/30 p-4 rounded-2xl shadow-[0_0_30px_rgba(255,77,0,0.2)] hover:border-verbatim-orange hover:bg-verbatim-orange transition-all duration-500 active:scale-95"
       >
         <div className="relative">
