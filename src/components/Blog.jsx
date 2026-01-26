@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom'; // IMPORT USELOCATION TO CATCH DATA
+import { Link, useLocation } from 'react-router-dom';
+import { Copy, Check } from 'lucide-react'; // IMPORT ICONS FOR PROFESSIONAL UI
 
 const Blog = () => {
     const location = useLocation();
@@ -18,10 +19,11 @@ const Blog = () => {
     const [selectedVoice, setSelectedVoice] = useState("");
     const [selectedEmotion, setSelectedEmotion] = useState("Neutral");
     
-    // 3. PROCESSING STATUS
+    // 3. PROCESSING & FEEDBACK STATUS
     const [isProcessing, setIsProcessing] = useState(false);
     const [translatedText, setTranslatedText] = useState("");
     const [audioUrl, setAudioUrl] = useState("");
+    const [copied, setCopied] = useState(false); // NEW: TRACKS COPY STATUS
 
     // YOUR VERIFIED RENDER URL
     const API_BASE_URL = "https://verbatim-backend.onrender.com";
@@ -44,8 +46,15 @@ const Blog = () => {
             });
     }, [selectedLang]);
 
+    // NEW: HANDLE COPY TO CLIPBOARD
+    const handleCopy = () => {
+        if (!translatedText) return;
+        navigator.clipboard.writeText(translatedText);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000); // Reset feedback after 2 seconds
+    };
+
     const handleVerbatimProcess = async () => {
-        // Safety check: Don't process if there is no content
         if (!location.state?.blogContent) {
             alert("Nothing to translate! Please process a video in the Dashboard first.");
             return;
@@ -95,7 +104,18 @@ const Blog = () => {
                     
                     {translatedText && (
                         <div className="p-6 bg-[#ff4d00]/5 border-l-4 border-[#ff4d00] rounded-r-xl animate-in fade-in slide-in-from-left-4 duration-500">
-                            <h3 className="text-xs font-black uppercase tracking-widest text-[#ff4d00] mb-3">Translated Script ({selectedLang})</h3>
+                            <div className="flex items-center justify-between mb-3">
+                                <h3 className="text-xs font-black uppercase tracking-widest text-[#ff4d00]">Translated Script ({selectedLang})</h3>
+                                
+                                {/* NEW: COPY BUTTON */}
+                                <button 
+                                    onClick={handleCopy}
+                                    className="flex items-center gap-2 px-3 py-1 bg-[#ff4d00]/10 hover:bg-[#ff4d00]/20 border border-[#ff4d00]/30 rounded-lg text-[10px] font-bold transition-all uppercase tracking-tighter"
+                                >
+                                    {copied ? <Check size={14} className="text-green-400" /> : <Copy size={14} />}
+                                    {copied ? "COPIED!" : "COPY TEXT"}
+                                </button>
+                            </div>
                             <p className="text-lg text-white italic leading-relaxed">{translatedText}</p>
                         </div>
                     )}
