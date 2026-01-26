@@ -424,28 +424,28 @@ const Dashboard = ({ user }) => {
         )}
       </main>
 
-      {/* FLOATING VERBATIM BLOG BUTTON - UPDATED TO SEND DATA */}
+      {/* REFINED FLOATING ACTION BUTTON */}
       <Link 
         to="/blog" 
         state={{ 
           blogContent: processingResults?.blog_post, 
           blogTitle: processingResults ? `Insights: ${processingResults.filename}` : "VBT Blog" 
         }}
-        className="fixed bottom-8 right-8 z-[100] group flex items-center gap-4 bg-verbatim-navy/90 backdrop-blur-xl border border-verbatim-orange/30 p-4 rounded-2xl shadow-[0_0_30px_rgba(255,77,0,0.2)] hover:border-verbatim-orange hover:bg-verbatim-orange transition-all duration-500 active:scale-95"
+        className="fixed bottom-6 right-6 z-[100] group flex items-center gap-3 bg-verbatim-navy/95 backdrop-blur-xl border border-verbatim-orange/40 p-3 rounded-2xl shadow-2xl hover:border-verbatim-orange hover:bg-verbatim-orange transition-all duration-300 active:scale-95"
       >
         <div className="relative">
-            <div className="absolute -inset-2 bg-verbatim-orange rounded-full blur opacity-20 group-hover:opacity-100 transition-opacity"></div>
-            <div className="bg-verbatim-orange/20 p-3 rounded-xl group-hover:bg-white/20 transition-colors">
-                <FileText size={24} className="text-verbatim-orange group-hover:text-white" />
+            {/* SUBTLE GLOW EFFECT - REDUCED FOR BETTER UX */}
+            <div className="absolute -inset-1 bg-verbatim-orange rounded-full blur-sm opacity-0 group-hover:opacity-60 transition-opacity"></div>
+            <div className="bg-verbatim-orange/20 p-2.5 rounded-xl group-hover:bg-white/20 transition-colors">
+                <FileText size={20} className="text-verbatim-orange group-hover:text-white" />
             </div>
         </div>
-        <div className="flex flex-col items-start -space-y-1 pr-2">
-            <span className="text-[10px] font-black text-verbatim-orange uppercase tracking-[0.2em] group-hover:text-white/80 transition-colors">Explore</span>
-            <span className="text-base font-black italic tracking-tighter group-hover:text-white transition-colors">VBT BLOG</span>
+        <div className="flex flex-col items-start -space-y-1 pr-1">
+            <span className="text-[9px] font-black text-verbatim-orange uppercase tracking-[0.2em] group-hover:text-white/80 transition-colors">Intelligence</span>
+            <span className="text-sm font-black italic tracking-tighter group-hover:text-white transition-colors">DUB & TRANSLATE BLOG TEXT</span>
         </div>
       </Link>
     </div>
   );
 };
-
 export default Dashboard;
