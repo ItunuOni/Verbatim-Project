@@ -1,6 +1,8 @@
 import os
 import shutil
 import uuid
+import re  # IMPORT REGEX FOR CLEANING
+import json # IMPORT JSON FOR CLOUD AUTH
 from pathlib import Path
 from typing import Annotated
 import datetime
@@ -22,20 +24,49 @@ load_dotenv()
 current_dir = os.path.dirname(os.path.abspath(__file__))
 key_path = os.path.join(current_dir, "serviceAccountKey.json")
 
-# Initialize Firebase
+# --- ROBUST FIREBASE INITIALIZATION (Local + Cloud) ---
 try:
     if not firebase_admin._apps:
-        cred = credentials.Certificate(key_path)
-        firebase_admin.initialize_app(cred)
-        print(f"✅ Verbatim Database: Active")
+        cred = None
+        
+        # Scenario A: Local Development (File exists)
+        if os.path.exists(key_path):
+            print("✅ Loading Firebase Key from File...")
+            cred = credentials.Certificate(key_path)
+            
+        # Scenario B: Cloud/Render (File hidden, use Env Var)
+        elif os.getenv("FIREBASE_SERVICE_KEY"):
+            print("✅ Loading Firebase Key from Environment Variable...")
+            # Parse the JSON string from Render environment
+            key_dict = json.loads(os.getenv("FIREBASE_SERVICE_KEY"))
+            cred = credentials.Certificate(key_dict)
+            
+        else:
+            print("❌ CRITICAL: No Firebase Key found in File or Environment!")
+        
+        if cred:
+            firebase_admin.initialize_app(cred)
+            print(f"✅ Verbatim Database: Active")
+            
     db = firestore.client()
 except Exception as e:
     print(f"❌ Firebase Error: {e}")
 
 # --- AI ENGINE CONFIG ---
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-MODEL_NAME = "gemini-flash-latest" 
+MODEL_NAME = "gemini-1.5-flash" 
 model = genai.GenerativeModel(MODEL_NAME)
+
+# --- HELPER: TIMESTAMP CLEANER ---
+def clean_transcript(text):
+    # Removes patterns like *0:00 - 0:15* or [00:12]
+    # 1. Remove bold timestamps *0:00 - 0:00*
+    clean_text = re.sub(r'\*\d+:\d+\s*-\s*\d+:\d+\*', '', text)
+    # 2. Remove bracket timestamps [00:00]
+    clean_text = re.sub(r'\[\d+:\d+\]', '', clean_text)
+    # 3. Clean extra spaces left behind
+    clean_text = re.sub(r'\s+', ' ', clean_text).strip()
+    return clean_text
 
 # --- 2. GLOBAL VOICE DATABASE (50+ Languages) ---
 VOICE_DB = {
@@ -204,18 +235,22 @@ async def process_media(file: UploadFile, user_id: Annotated[str, Form()]):
 
         full_text = response.text
         transcript = full_text.split("Transcript")[1].split("Blog Post")[0].strip() if "Transcript" in full_text else ""
+        
+        # --- NEW: FORCE CLEAN TIMESTAMPS ---
+        clean_trans = clean_transcript(transcript)
+        
         blog_post = full_text.split("Blog Post")[1].split("Summary")[0].strip() if "Blog Post" in full_text else ""
         summary = full_text.split("Summary")[1].strip() if "Summary" in full_text else ""
 
         db.collection('users').document(user_id).collection('transcriptions').document().set({
             "filename": file.filename,
             "upload_time": firestore.SERVER_TIMESTAMP,
-            "transcript": transcript, 
+            "transcript": clean_trans, 
             "blog_post": blog_post, 
             "summary": summary
         })
 
-        return {"message": "Success", "transcript": transcript, "blog_post": blog_post, "summary": summary}
+        return {"message": "Success", "transcript": clean_trans, "blog_post": blog_post, "summary": summary}
 
     except Exception as e:
         error_str = str(e)

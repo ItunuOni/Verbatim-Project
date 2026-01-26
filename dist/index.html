@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    
+    <link rel="preload" as="image" href="/logo.png" />
+    <link rel="icon" type="image/png" href="/logo.png" />
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    
+    <title>Verbatim - Transcription Pro</title>
+
+    <style>
+      body { margin: 0; background-color: #0f172a; /* Verbatim Navy */ }
+      #root { display: flex; flex-direction: column; min-height: 100vh; }
+      
+      /* The Loading Container */
+      .app-loading {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        width: 100vw;
+        position: fixed;
+        top: 0;
+        left: 0;
+        z-index: 9999;
+        background-color: #0f172a;
+      }
+      
+      /* The Spinning Circle */
+      .spinner {
+        width: 50px;
+        height: 50px;
+        border: 4px solid rgba(255, 255, 255, 0.1);
+        border-left-color: #ff4d00; /* Verbatim Orange */
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+    </style>
+    <script type="module" crossorigin src="/assets/index-BOEZ4CkV.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-S4W5F7VZ.css">
+  </head>
+  <body>
+    <div id="root">
+      <div class="app-loading">
+        <div class="spinner"></div>
+      </div>
+    </div>
+  </body>
+</html>
