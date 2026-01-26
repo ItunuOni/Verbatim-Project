@@ -24,23 +24,17 @@ load_dotenv()
 current_dir = os.path.dirname(os.path.abspath(__file__))
 key_path = os.path.join(current_dir, "serviceAccountKey.json")
 
-# --- ROBUST FIREBASE INITIALIZATION (Local + Cloud) ---
-# --- ROBUST FIREBASE INITIALIZATION (Priority: Cloud > Local) ---
+# --- ROBUST FIREBASE INITIALIZATION ---
 try:
     if not firebase_admin._apps:
         cred = None
-        
-        # Priority 1: Cloud/Render (Always check this first!)
         if os.getenv("FIREBASE_SERVICE_KEY"):
             print("✅ Loading Firebase Key from Environment Variable...")
             key_dict = json.loads(os.getenv("FIREBASE_SERVICE_KEY"))
             cred = credentials.Certificate(key_dict)
-
-        # Priority 2: Local Development (Fallback)
         elif os.path.exists(key_path):
             print("✅ Loading Firebase Key from File...")
             cred = credentials.Certificate(key_path)
-            
         else:
             print("❌ CRITICAL: No Firebase Key found in File or Environment!")
         
@@ -52,23 +46,29 @@ try:
 except Exception as e:
     print(f"❌ Firebase Error: {e}")
 
-    
-# --- AI ENGINE CONFIG ---
 # --- AI ENGINE CONFIG ---
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 MODEL_NAME = "gemini-flash-latest"
 model = genai.GenerativeModel(MODEL_NAME)
 
-# --- HELPER: TIMESTAMP CLEANER ---
+# --- HELPERS: CLEANERS ---
 def clean_transcript(text):
-    # Removes patterns like *0:00 - 0:15* or [00:12]
-    # 1. Remove bold timestamps *0:00 - 0:00*
     clean_text = re.sub(r'\*\d+:\d+\s*-\s*\d+:\d+\*', '', text)
-    # 2. Remove bracket timestamps [00:00]
     clean_text = re.sub(r'\[\d+:\d+\]', '', clean_text)
-    # 3. Clean extra spaces left behind
     clean_text = re.sub(r'\s+', ' ', clean_text).strip()
     return clean_text
+
+def clean_text_for_tts(text):
+    """NEW: Removes Markdown symbols so the AI doesn't say 'Hashtag' or 'Asterisk'"""
+    # 1. Remove Markdown headers (e.g., #, ##, ###)
+    text = re.sub(r'#+\s*', '', text)
+    # 2. Remove bold/italic symbols (e.g., **, *)
+    text = re.sub(r'\*+', '', text)
+    # 3. Remove underscores used for emphasis
+    text = re.sub(r'_+', '', text)
+    # 4. Clean up any resulting double spaces
+    text = re.sub(r'\s+', ' ', text).strip()
+    return text
 
 # --- 2. GLOBAL VOICE DATABASE (50+ Languages) ---
 VOICE_DB = {
@@ -93,7 +93,6 @@ VOICE_DB = {
     "Indonesian": [{"id": "id-ID-GadisNeural", "name": "Gadis (Female)"}, {"id": "id-ID-ArdiNeural", "name": "Ardi (Male)"}]
 }
 
-# Emotion Mappings
 EMOTION_SETTINGS = {
     "Neutral": {"rate": "+0%", "pitch": "+0Hz"},
     "Excited": {"rate": "+10%", "pitch": "+5Hz"},
@@ -109,15 +108,7 @@ EMOTION_SETTINGS = {
 
 # --- 3. APP INITIALIZATION ---
 app = FastAPI()
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"], 
-    allow_credentials=True,
-    allow_methods=["*"], 
-    allow_headers=["*"],
-    expose_headers=["*"]
-)
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"], expose_headers=["*"])
 
 TEMP_DIR = Path("temp")
 TEMP_DIR.mkdir(exist_ok=True)
@@ -137,22 +128,16 @@ def get_languages():
 def get_voices(language: str):
     return VOICE_DB.get(language, VOICE_DB["English (US)"])
 
-# --- NEW: HISTORY ENDPOINT (THE ESSENCE OF THE DATABASE) ---
 @app.get("/api/history/{user_id}")
 def get_history(user_id: str):
     try:
-        # Fetch docs sorted by upload_time (newest first)
-        docs = db.collection('users').document(user_id).collection('transcriptions')\
-                 .order_by("upload_time", direction=firestore.Query.DESCENDING).stream()
-        
+        docs = db.collection('users').document(user_id).collection('transcriptions').order_by("upload_time", direction=firestore.Query.DESCENDING).stream()
         history = []
         for doc in docs:
             data = doc.to_dict()
-            # Serialize timestamp for JSON
             if "upload_time" in data and data["upload_time"]:
                 data["upload_time"] = data["upload_time"].isoformat()
             history.append({"id": doc.id, **data})
-            
         return history
     except Exception as e:
         print(f"❌ History Fetch Error: {e}")
@@ -166,12 +151,14 @@ async def generate_audio(
     voice_id: Annotated[str, Form()]
 ):
     try:
-        print(f"🎤 Dubbing Request: {language} ({emotion}) using {voice_id}")
-        
         # 1. Translate
         translation_prompt = f"Translate the following text into {language}. Return ONLY the translation, no extra text:\n\n{text}"
         translation_response = model.generate_content(translation_prompt)
         translated_text = translation_response.text.strip()
+        
+        # --- NEW: CLEAN TEXT FOR TTS ENGINE ---
+        # We strip formatting symbols so the voice doesn't say "hashtag"
+        tts_ready_text = clean_text_for_tts(translated_text)
         
         # 2. Emotion Settings
         settings = EMOTION_SETTINGS.get(emotion, EMOTION_SETTINGS["Neutral"])
@@ -181,18 +168,16 @@ async def generate_audio(
         output_path = TEMP_DIR / output_filename
         
         communicate = edge_tts.Communicate(
-            translated_text, 
+            tts_ready_text, 
             voice_id, 
             rate=settings["rate"], 
             pitch=settings["pitch"]
         )
         await communicate.save(str(output_path))
         
-        audio_url = f"/temp/{output_filename}"
-        
         return {
             "status": "success", 
-            "audio_url": audio_url, 
+            "audio_url": f"/temp/{output_filename}", 
             "translated_text": translated_text,
             "language": language
         }
@@ -200,8 +185,6 @@ async def generate_audio(
     except Exception as e:
         print(f"❌ Dubbing Error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
-
-# --- 5. CORE LOGIC ---
 
 @app.post("/api/process-media")
 async def process_media(file: UploadFile, user_id: Annotated[str, Form()]):
@@ -217,7 +200,6 @@ async def process_media(file: UploadFile, user_id: Annotated[str, Form()]):
             shutil.copyfileobj(file.file, buffer)
 
         path_to_upload = temp_filepath
-
         if file_extension in ['.mp4', '.mov', '.avi', '.mkv', '.webm']:
             audio_path = TEMP_DIR / f"{temp_filepath.stem}.mp3"
             video_clip = VideoFileClip(str(temp_filepath))
@@ -226,21 +208,15 @@ async def process_media(file: UploadFile, user_id: Annotated[str, Form()]):
             path_to_upload = audio_path
             files_to_cleanup.append(audio_path)
 
-        print(f"🚀 Verbatim Engine: Analyzing {file.filename}...")
         media_file = genai.upload_file(path=str(path_to_upload))
-        
-        # UPDATED PROMPT: STRICTLY FORBIDS TIMESTAMPS
         response = model.generate_content([
             media_file,
-            "Provide: 1. Full Transcript (Do NOT include timestamps, timecodes, or speaker labels. Return ONLY the clean spoken text). 2. Blog Post (500 words). 3. Summary (150 words). Format with headings: 'Transcript', 'Blog Post', 'Summary'."
+            "Provide: 1. Full Transcript (Do NOT include timestamps, timecodes, or speaker labels). 2. Blog Post (500 words). 3. Summary (150 words). Format with headings: 'Transcript', 'Blog Post', 'Summary'."
         ])
 
         full_text = response.text
         transcript = full_text.split("Transcript")[1].split("Blog Post")[0].strip() if "Transcript" in full_text else ""
-        
-        # --- NEW: FORCE CLEAN TIMESTAMPS ---
         clean_trans = clean_transcript(transcript)
-        
         blog_post = full_text.split("Blog Post")[1].split("Summary")[0].strip() if "Blog Post" in full_text else ""
         summary = full_text.split("Summary")[1].strip() if "Summary" in full_text else ""
 
@@ -255,11 +231,7 @@ async def process_media(file: UploadFile, user_id: Annotated[str, Form()]):
         return {"message": "Success", "transcript": clean_trans, "blog_post": blog_post, "summary": summary}
 
     except Exception as e:
-        error_str = str(e)
-        if "429" in error_str:
-             raise HTTPException(status_code=429, detail="Engine Quota Reached. Please wait a minute.")
-        print(f"❌ Verbatim Engine Error: {error_str}")
-        raise HTTPException(status_code=500, detail=error_str)
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
         for path in files_to_cleanup:
             if path.exists(): os.remove(path)
