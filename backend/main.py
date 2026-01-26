@@ -3,6 +3,7 @@ import shutil
 import uuid
 import re  # IMPORT REGEX FOR CLEANING
 import json # IMPORT JSON FOR CLOUD AUTH
+import time # IMPORT TIME FOR RETRY DELAY
 from pathlib import Path
 from typing import Annotated
 import datetime
@@ -51,7 +52,7 @@ genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 MODEL_NAME = "gemini-flash-latest"
 model = genai.GenerativeModel(MODEL_NAME)
 
-# --- HELPERS: CLEANERS ---
+# --- HELPERS: CLEANERS & RETRY LOGIC ---
 def clean_transcript(text):
     clean_text = re.sub(r'\*\d+:\d+\s*-\s*\d+:\d+\*', '', text)
     clean_text = re.sub(r'\[\d+:\d+\]', '', clean_text)
@@ -59,16 +60,34 @@ def clean_transcript(text):
     return clean_text
 
 def clean_text_for_tts(text):
-    """NEW: Removes Markdown symbols so the AI doesn't say 'Hashtag' or 'Asterisk'"""
-    # 1. Remove Markdown headers (e.g., #, ##, ###)
+    """Removes Markdown symbols so the AI doesn't say 'Hashtag' or 'Asterisk'"""
     text = re.sub(r'#+\s*', '', text)
-    # 2. Remove bold/italic symbols (e.g., **, *)
     text = re.sub(r'\*+', '', text)
-    # 3. Remove underscores used for emphasis
     text = re.sub(r'_+', '', text)
-    # 4. Clean up any resulting double spaces
     text = re.sub(r'\s+', ' ', text).strip()
     return text
+
+def retry_gemini_call(model_instance, prompt_input, retries=3, delay=5):
+    """
+    Wraps the AI call in a loop. If it hits a 429 (Quota) error, 
+    it waits and tries again instead of crashing the app.
+    """
+    for attempt in range(retries):
+        try:
+            return model_instance.generate_content(prompt_input)
+        except Exception as e:
+            error_str = str(e)
+            if "429" in error_str:
+                if attempt < retries - 1:
+                    print(f"⚠️ Quota Hit (429). Retrying in {delay}s... (Attempt {attempt+1}/{retries})")
+                    time.sleep(delay)
+                    delay *= 2 # Exponential backoff (wait 5s, then 10s...)
+                    continue
+                else:
+                    print("❌ Max retries reached for Gemini API.")
+                    raise e
+            else:
+                raise e # Raise other errors immediately
 
 # --- 2. GLOBAL VOICE DATABASE (50+ Languages) ---
 VOICE_DB = {
@@ -151,13 +170,14 @@ async def generate_audio(
     voice_id: Annotated[str, Form()]
 ):
     try:
-        # 1. Translate
+        # 1. Translate with Retry Logic
         translation_prompt = f"Translate the following text into {language}. Return ONLY the translation, no extra text:\n\n{text}"
-        translation_response = model.generate_content(translation_prompt)
+        
+        # USE NEW RETRY WRAPPER
+        translation_response = retry_gemini_call(model, translation_prompt)
         translated_text = translation_response.text.strip()
         
-        # --- NEW: CLEAN TEXT FOR TTS ENGINE ---
-        # We strip formatting symbols so the voice doesn't say "hashtag"
+        # --- CLEAN TEXT FOR TTS ---
         tts_ready_text = clean_text_for_tts(translated_text)
         
         # 2. Emotion Settings
@@ -209,7 +229,9 @@ async def process_media(file: UploadFile, user_id: Annotated[str, Form()]):
             files_to_cleanup.append(audio_path)
 
         media_file = genai.upload_file(path=str(path_to_upload))
-        response = model.generate_content([
+        
+        # USE NEW RETRY WRAPPER FOR MAIN ANALYSIS
+        response = retry_gemini_call(model, [
             media_file,
             "Provide: 1. Full Transcript (Do NOT include timestamps, timecodes, or speaker labels). 2. Blog Post (500 words). 3. Summary (150 words). Format with headings: 'Transcript', 'Blog Post', 'Summary'."
         ])
@@ -231,6 +253,10 @@ async def process_media(file: UploadFile, user_id: Annotated[str, Form()]):
         return {"message": "Success", "transcript": clean_trans, "blog_post": blog_post, "summary": summary}
 
     except Exception as e:
+        error_str = str(e)
+        if "429" in error_str:
+             # Even with retry, if it fails, we return a cleaner error message
+             raise HTTPException(status_code=429, detail="Engine Busy. Retrying... please wait a moment.")
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         for path in files_to_cleanup:
