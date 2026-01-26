@@ -6,6 +6,7 @@ import { auth } from './firebase';
 // Import our components
 import LandingPage from './components/LandingPage';
 import Dashboard from './components/Dashboard';
+import Blog from './components/Blog';
 
 function App() {
   const [user, setUser] = useState(null);
@@ -32,14 +33,14 @@ function App() {
   return (
     <Router>
       <Routes>
-        {/* If not logged in, show Landing. If logged in, go to Dashboard */}
         <Route path="/" element={!user ? <LandingPage /> : <Navigate to="/dashboard" />} />
-        
-        {/* Protected Dashboard Route */}
         <Route path="/dashboard" element={user ? <Dashboard user={user} /> : <Navigate to="/" />} />
+        <Route path="/blog" element={<Blog />} />
       </Routes>
     </Router>
   );
+
+  
 }
 
 export default App;

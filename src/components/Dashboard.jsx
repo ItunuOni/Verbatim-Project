@@ -1,12 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
-import { LogOut, Upload, FileAudio, CheckCircle, AlertCircle, Loader2, FileText, AlignLeft, Mic, Globe, Play, Languages, User, Cpu, XCircle, History, Download, ChevronRight, X } from 'lucide-react';
+import { 
+  LogOut, Upload, FileAudio, CheckCircle, AlertCircle, Loader2, 
+  FileText, AlignLeft, Mic, Globe, Play, Languages, User, Cpu, 
+  XCircle, History, Download, ChevronRight, X 
+} from 'lucide-react';
+import { Link } from 'react-router-dom'; // STEP 1: ADDED LINK IMPORT
 import { signOut } from 'firebase/auth';
 import { auth } from '../firebase';
 
 // --- CLOUD CONFIG (MASTER PRESERVED) ---
-const CLOUD_API_BASE = "https://verbatim-backend.onrender.com";
+const CLOUD_API_BASE = "https://verbatim-backend.onrender.com"; // VERIFIED RENDER URL
 
 const Dashboard = ({ user }) => {
   const [selectedFile, setSelectedFile] = useState(null);
@@ -35,7 +40,6 @@ const Dashboard = ({ user }) => {
 
   // 1. Initial Data Fetch (Languages + History)
   useEffect(() => {
-    // Fetch Languages
     axios.get(`${CLOUD_API_BASE}/api/languages`)
       .then(res => {
         setAvailableLanguages(res.data);
@@ -43,7 +47,6 @@ const Dashboard = ({ user }) => {
       })
       .catch(err => console.error("Cloud Connection Error:", err));
 
-    // Fetch History
     if (user?.uid) fetchHistory();
   }, [user]);
 
@@ -83,18 +86,16 @@ const Dashboard = ({ user }) => {
     }
   };
 
-  // --- DOWNLOAD HELPER ---
   const downloadText = (filename, content) => {
     const element = document.createElement("a");
     const file = new Blob([content], {type: 'text/plain'});
     element.href = URL.createObjectURL(file);
     element.download = filename;
-    document.body.appendChild(element); // Required for this to work in FireFox
+    document.body.appendChild(element);
     element.click();
     document.body.removeChild(element);
   };
 
-  // 3. Process Media
   const handleUpload = async (e) => {
     if (e && e.preventDefault) e.preventDefault(); 
     if (!selectedFile || !user) return;
@@ -108,7 +109,6 @@ const Dashboard = ({ user }) => {
     formData.append("user_id", user.uid);
 
     try {
-      console.log("🚀 Starting upload to:", `${CLOUD_API_BASE}/api/process-media`);
       const response = await axios({
           method: 'post',
           url: `${CLOUD_API_BASE}/api/process-media`,
@@ -119,7 +119,7 @@ const Dashboard = ({ user }) => {
       );
       setProcessingResults(response.data);
       setSelectedFile(null);
-      fetchHistory(); // Refresh history after new upload
+      fetchHistory();
     } catch (err) {
       let displayError = err.response?.data?.detail || err.message;
       if (err.response?.status === 429) displayError = "Verbatim Engine Limit Reached. Please wait 60 seconds.";
@@ -129,7 +129,6 @@ const Dashboard = ({ user }) => {
     }
   };
 
-  // 4. Generate Audio
   const handleGenerateVoice = async () => {
     if (!processingResults) return;
     const textToUse = sourceType === "Summary" ? processingResults.summary : processingResults.transcript;
@@ -148,11 +147,11 @@ const Dashboard = ({ user }) => {
     try {
       const response = await axios.post(`${CLOUD_API_BASE}/api/generate-audio`, formData);
       const audioPath = response.data.audio_url;
-      setGeneratedAudio(`${CLOUD_API_BASE}${audioPath}`); // Construct full URL
+      setGeneratedAudio(`${CLOUD_API_BASE}${audioPath}`);
       if (response.data.translated_text) setTranslatedText(response.data.translated_text);
     } catch (err) {
       console.error(err);
-      setStudioError("Voice generation failed. Please ensure a valid voice is selected.");
+      setStudioError("Voice generation failed.");
     } finally {
       setIsVoiceLoading(false);
     }
@@ -169,23 +168,16 @@ const Dashboard = ({ user }) => {
   return (
     <div className="min-h-screen bg-verbatim-navy text-white font-sans selection:bg-verbatim-orange overflow-x-hidden">
       
-      {/* PROFESSIONAL NAVBAR - FIXED POSITIONING FIX */}
-      {/* Changed 'sticky' to 'fixed w-full top-0 z-50' to guarantee visibility */}
       <nav className="fixed w-full top-0 left-0 z-50 border-b border-white/10 bg-verbatim-navy/90 backdrop-blur-xl transition-all">
         <div className="max-w-7xl mx-auto px-4 md:px-6 h-auto md:h-32 py-4 md:py-0 flex flex-col md:flex-row justify-between items-center gap-4">
-          
           <div className="flex items-center gap-6 cursor-pointer group relative" onClick={() => window.location.href = '/dashboard'}>
             <div className="relative flex items-center justify-center">
               <div className="absolute -inset-4 bg-gradient-to-tr from-verbatim-orange to-pink-500 rounded-2xl blur-md opacity-0 group-hover:opacity-100 transition-all duration-500 shadow-[0_0_20px_rgba(255,77,0,0.4)]"></div>
-              {/* OPTIMIZED LOGO */}
               <img 
                 src={LOGO_PATH} 
                 alt="Verbatim Logo" 
                 width="140" 
                 height="96"
-                decoding="sync"
-                loading="eager" 
-                fetchpriority="high" 
                 className="relative h-24 w-auto min-w-[140px] rounded-xl border-2 border-verbatim-orange bg-white p-1 transform group-hover:scale-110 transition-all duration-300 z-10 shadow-2xl object-contain" 
               />
             </div>
@@ -208,15 +200,12 @@ const Dashboard = ({ user }) => {
         </div>
       </nav>
 
-      {/* HISTORY SIDEBAR */}
       <AnimatePresence>
         {showHistory && (
             <>
                 <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} onClick={() => setShowHistory(false)} className="fixed inset-0 bg-black/60 z-[60] backdrop-blur-sm" />
                 <motion.div initial={{x: "100%"}} animate={{x: 0}} exit={{x: "100%"}} className="fixed top-0 right-0 h-full w-full md:w-96 bg-verbatim-navy border-l border-white/10 z-[70] shadow-2xl p-6 overflow-y-auto">
-                    {/* SPACER FOR FIXED HEADER IN SIDEBAR */}
                     <div className="h-20 md:hidden"></div> 
-                    
                     <div className="flex items-center justify-between mb-8 pt-10 md:pt-0">
                         <h3 className="text-2xl font-black flex items-center gap-2"><History className="text-verbatim-orange"/> Project History</h3>
                         <button onClick={() => setShowHistory(false)}><X className="text-gray-400 hover:text-white" /></button>
@@ -241,9 +230,7 @@ const Dashboard = ({ user }) => {
         )}
       </AnimatePresence>
 
-      {/* MAIN CONTENT - ADDED PADDING TO COMPENSATE FOR FIXED HEADER */}
       <main className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-12 pt-48 md:pt-40">
-        {/* HERO UPLOAD */}
         <div className="glass-card rounded-3xl p-6 md:p-12 text-center mb-12 border border-white/5 shadow-2xl bg-gradient-to-b from-white/5 to-transparent">
           <h2 className="text-2xl md:text-4xl font-black mb-4">Transform Your Media</h2>
           
@@ -294,8 +281,6 @@ const Dashboard = ({ user }) => {
 
         {processingResults && (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
-            
-            {/* 1. FULL WIDTH TRANSCRIPT */}
             <div className="glass-card p-6 md:p-10 rounded-3xl border border-white/10 shadow-2xl">
               <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-8 gap-4">
                 <div className="flex items-center gap-3">
@@ -309,9 +294,7 @@ const Dashboard = ({ user }) => {
               </div>
             </div>
 
-            {/* 2. SUMMARY & BLOG POST */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              {/* SUMMARY */}
               <div className="glass-card p-6 md:p-8 rounded-2xl h-full flex flex-col border border-white/10 bg-white/[0.02]">
                  <div className="flex items-center justify-between mb-4">
                     <h3 className="text-lg md:text-xl font-bold text-white flex items-center gap-2"><AlignLeft className="text-verbatim-orange" /> Summary</h3>
@@ -322,7 +305,6 @@ const Dashboard = ({ user }) => {
                  </div>
               </div>
               
-              {/* BLOG POST */}
               <div className="glass-card p-6 md:p-8 rounded-2xl h-full flex flex-col border border-white/10 bg-white/[0.02]">
                  <div className="flex items-center justify-between mb-4">
                     <h3 className="text-lg md:text-xl font-bold text-white flex items-center gap-2"><FileText className="text-verbatim-orange" /> Blog Post</h3>
@@ -334,7 +316,6 @@ const Dashboard = ({ user }) => {
               </div>
             </div>
 
-            {/* 3. GLOBAL STUDIO */}
             <div className="glass-card p-6 md:p-10 rounded-3xl border border-verbatim-orange/30 bg-gradient-to-br from-verbatim-navy to-black relative overflow-hidden">
               <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none"><Globe size={200} className="text-verbatim-orange" /></div>
               
@@ -420,7 +401,6 @@ const Dashboard = ({ user }) => {
                       </div>
                       <audio controls src={generatedAudio} className="w-full mb-8 h-12" autoPlay />
                       
-                      {/* TRANSLATION SECTION - UPGRADED WITH DOWNLOAD */}
                       {translatedText && (
                         <div className="text-left">
                           <div className="flex items-center justify-between border-b border-white/10 pb-2 mb-3">
@@ -435,7 +415,6 @@ const Dashboard = ({ user }) => {
                           <div className="bg-black/20 p-6 rounded-xl text-gray-300 max-h-60 overflow-y-auto whitespace-pre-wrap border border-white/5 font-mono text-sm leading-relaxed">{translatedText}</div>
                         </div>
                       )}
-
                     </div>
                   )}
                 </div>
@@ -444,6 +423,23 @@ const Dashboard = ({ user }) => {
           </motion.div>
         )}
       </main>
+
+      {/* FLOATING VERBATIM BLOG BUTTON - STEP 2: PLACEMENT BEFORE FINAL DIV */}
+      <Link 
+        to="/blog" 
+        className="fixed bottom-8 right-8 z-[100] group flex items-center gap-4 bg-verbatim-navy/90 backdrop-blur-xl border border-verbatim-orange/30 p-4 rounded-2xl shadow-[0_0_30px_rgba(255,77,0,0.2)] hover:border-verbatim-orange hover:bg-verbatim-orange transition-all duration-500 active:scale-95"
+      >
+        <div className="relative">
+            <div className="absolute -inset-2 bg-verbatim-orange rounded-full blur opacity-20 group-hover:opacity-100 transition-opacity"></div>
+            <div className="bg-verbatim-orange/20 p-3 rounded-xl group-hover:bg-white/20 transition-colors">
+                <FileText size={24} className="text-verbatim-orange group-hover:text-white" />
+            </div>
+        </div>
+        <div className="flex flex-col items-start -space-y-1 pr-2">
+            <span className="text-[10px] font-black text-verbatim-orange uppercase tracking-[0.2em] group-hover:text-white/80 transition-colors">Explore</span>
+            <span className="text-base font-black italic tracking-tighter group-hover:text-white transition-colors">VBT BLOG</span>
+        </div>
+      </Link>
     </div>
   );
 };
