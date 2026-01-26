@@ -54,7 +54,7 @@ except Exception as e:
 
 # --- AI ENGINE CONFIG ---
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-MODEL_NAME = "gemini-1.5-flash" 
+MODEL_NAME = "gemini-1.5-flash-latest" 
 model = genai.GenerativeModel(MODEL_NAME)
 
 # --- HELPER: TIMESTAMP CLEANER ---
