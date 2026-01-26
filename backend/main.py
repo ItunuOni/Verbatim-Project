@@ -25,21 +25,21 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 key_path = os.path.join(current_dir, "serviceAccountKey.json")
 
 # --- ROBUST FIREBASE INITIALIZATION (Local + Cloud) ---
+# --- ROBUST FIREBASE INITIALIZATION (Priority: Cloud > Local) ---
 try:
     if not firebase_admin._apps:
         cred = None
         
-        # Scenario A: Local Development (File exists)
-        if os.path.exists(key_path):
-            print("✅ Loading Firebase Key from File...")
-            cred = credentials.Certificate(key_path)
-            
-        # Scenario B: Cloud/Render (File hidden, use Env Var)
-        elif os.getenv("FIREBASE_SERVICE_KEY"):
+        # Priority 1: Cloud/Render (Always check this first!)
+        if os.getenv("FIREBASE_SERVICE_KEY"):
             print("✅ Loading Firebase Key from Environment Variable...")
-            # Parse the JSON string from Render environment
             key_dict = json.loads(os.getenv("FIREBASE_SERVICE_KEY"))
             cred = credentials.Certificate(key_dict)
+
+        # Priority 2: Local Development (Fallback)
+        elif os.path.exists(key_path):
+            print("✅ Loading Firebase Key from File...")
+            cred = credentials.Certificate(key_path)
             
         else:
             print("❌ CRITICAL: No Firebase Key found in File or Environment!")
@@ -52,6 +52,7 @@ try:
 except Exception as e:
     print(f"❌ Firebase Error: {e}")
 
+    
 # --- AI ENGINE CONFIG ---
 # --- AI ENGINE CONFIG ---
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
