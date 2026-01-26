@@ -53,8 +53,9 @@ except Exception as e:
     print(f"❌ Firebase Error: {e}")
 
 # --- AI ENGINE CONFIG ---
+# --- AI ENGINE CONFIG ---
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-MODEL_NAME = "gemini-1.5-flash-latest" 
+MODEL_NAME = "gemini-flash-latest"
 model = genai.GenerativeModel(MODEL_NAME)
 
 # --- HELPER: TIMESTAMP CLEANER ---
