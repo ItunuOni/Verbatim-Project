@@ -4,6 +4,7 @@ import uuid
 import re  # IMPORT REGEX FOR CLEANING
 import json # IMPORT JSON FOR CLOUD AUTH
 import time # IMPORT TIME FOR RETRY DELAY
+import gc   # [FIX 1] GARBAGE COLLECTOR FOR MEMORY MANAGEMENT
 from pathlib import Path
 from typing import Annotated
 import datetime
@@ -195,6 +196,9 @@ async def generate_audio(
         )
         await communicate.save(str(output_path))
         
+        # [FIX 1] MEMORY CLEANUP
+        gc.collect()
+        
         return {
             "status": "success", 
             "audio_url": f"/temp/{output_filename}", 
@@ -220,15 +224,29 @@ async def process_media(file: UploadFile, user_id: Annotated[str, Form()]):
             shutil.copyfileobj(file.file, buffer)
 
         path_to_upload = temp_filepath
+        # Set a default mime type for audio
+        upload_mime_type = "audio/mp3" 
+
         if file_extension in ['.mp4', '.mov', '.avi', '.mkv', '.webm']:
             audio_path = TEMP_DIR / f"{temp_filepath.stem}.mp3"
             video_clip = VideoFileClip(str(temp_filepath))
             video_clip.audio.write_audiofile(str(audio_path), logger=None)
             video_clip.close()
+            
+            # [FIX 1] AGGRESSIVE MEMORY CLEANUP FOR VIDEO
+            del video_clip
+            gc.collect()
+
             path_to_upload = audio_path
             files_to_cleanup.append(audio_path)
-
-        media_file = genai.upload_file(path=str(path_to_upload))
+            # We converted it to MP3, so mime_type is definitely mp3
+            upload_mime_type = "audio/mp3"
+        elif file_extension == ".wav":
+            upload_mime_type = "audio/wav"
+        
+        # [FIX 2] TABLET FIX: EXPLICITLY SET MIME_TYPE
+        # This tells Google "Hey, this is an MP3" even if the Tablet upload header was weird.
+        media_file = genai.upload_file(path=str(path_to_upload), mime_type=upload_mime_type)
         
         # USE NEW RETRY WRAPPER FOR MAIN ANALYSIS
         response = retry_gemini_call(model, [
@@ -260,4 +278,10 @@ async def process_media(file: UploadFile, user_id: Annotated[str, Form()]):
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         for path in files_to_cleanup:
-            if path.exists(): os.remove(path)
+            if path.exists(): 
+                try:
+                    os.remove(path)
+                except:
+                    pass
+        # [FIX 1] FINAL CLEANUP SWEEP
+        gc.collect()
