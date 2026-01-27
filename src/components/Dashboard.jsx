@@ -1,7 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { FFmpeg } from '@ffmpeg/ffmpeg';
-import { fetchFile, toBlobURL } from '@ffmpeg/util';
 import { 
   LogOut, Upload, FileAudio, CheckCircle, AlertCircle, Loader2, 
   FileText, AlignLeft, Mic, Globe, Play, Languages, User as UserIcon, Cpu, 
@@ -18,7 +16,6 @@ const Dashboard = ({ user: currentUser }) => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [processingResults, setProcessingResults] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [statusMessage, setStatusMessage] = useState(""); 
   const [error, setError] = useState(null);
   const [studioError, setStudioError] = useState(null);
   
@@ -26,8 +23,6 @@ const Dashboard = ({ user: currentUser }) => {
   const [showHistory, setShowHistory] = useState(false);
   
   const fileInputRef = useRef(null);
-  const ffmpegRef = useRef(new FFmpeg());
-  const [ffmpegLoaded, setFfmpegLoaded] = useState(false);
 
   // --- STUDIO STATE ---
   const [voiceEmotion, setVoiceEmotion] = useState("Neutral");
@@ -40,16 +35,8 @@ const Dashboard = ({ user: currentUser }) => {
   const [generatedAudio, setGeneratedAudio] = useState(null);
   const [translatedText, setTranslatedText] = useState(null);
 
-  // 1. Initial Data Fetch & Load FFmpeg
+  // 1. Initial Data Fetch
   useEffect(() => {
-    // BULLETPROOF CHECK: Only load engine if browser supports High-Performance headers
-    const isCompatible = window.crossOriginIsolated || window.SharedArrayBuffer;
-    if (isCompatible) {
-        loadFfmpeg(); 
-    } else {
-        console.warn("Turbo Engine skipped: Browser environment does not support SharedArrayBuffer.");
-    }
-    
     axios.get(`${CLOUD_API_BASE}/api/languages`)
       .then(res => {
         setAvailableLanguages(res.data);
@@ -63,26 +50,6 @@ const Dashboard = ({ user: currentUser }) => {
 
     if (currentUser?.uid) fetchHistory();
   }, [currentUser]);
-
-  const loadFfmpeg = async () => {
-    const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
-    const ffmpeg = ffmpegRef.current;
-    
-    if (!ffmpeg.loaded) {
-        try {
-            await ffmpeg.load({
-                coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-                wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
-            });
-            setFfmpegLoaded(true);
-            console.log("Turbo Engine (FFmpeg) Loaded Successfully");
-        } catch (err) {
-            // SILENT FAIL: If it fails, we just don't set ffmpegLoaded to true.
-            // The app will function normally using standard upload.
-            console.error("Turbo Engine failed to initialize (Using Standard Mode):", err);
-        }
-    }
-  };
 
   const fetchHistory = async () => {
     try {
@@ -130,24 +97,6 @@ const Dashboard = ({ user: currentUser }) => {
     document.body.removeChild(element);
   };
 
-  // --- THE TURBO EXTRACTOR ---
-  const transcode = async (file) => {
-    const ffmpeg = ffmpegRef.current;
-    if (!ffmpegLoaded) return file; 
-
-    // SAFETY TRY/CATCH: If transcoding crashes, return original file
-    try {
-        await ffmpeg.writeFile('input.mp4', await fetchFile(file));
-        await ffmpeg.exec(['-i', 'input.mp4', '-q:a', '0', '-map', 'a', 'output.mp3']);
-        const data = await ffmpeg.readFile('output.mp3');
-        const audioBlob = new Blob([data.buffer], { type: 'audio/mp3' });
-        return new File([audioBlob], "extracted_audio.mp3", { type: 'audio/mp3' });
-    } catch (err) {
-        console.error("Optimization error (reverting to original):", err);
-        return file;
-    }
-  };
-
   const handleUpload = async (e) => {
     if (e && e.preventDefault) e.preventDefault(); 
     if (!selectedFile || !currentUser) return;
@@ -155,25 +104,10 @@ const Dashboard = ({ user: currentUser }) => {
     setIsLoading(true);
     setUploadProgress(0);
     setError(null);
-    setStatusMessage(""); // CRITICAL: Reset message so "Securing Assets... %" shows
     
     try {
-        let fileToUpload = selectedFile;
-
-        // CHECK: Is it a video? If so, try to optimize
-        if (selectedFile.type.startsWith('video/')) {
-            if (ffmpegLoaded) {
-                 setStatusMessage("Turbo Engine: Optimizing Video..."); 
-                 fileToUpload = await transcode(selectedFile);
-                 
-                 // CRITICAL: Clear message immediately after transcode so upload progress shows
-                 setStatusMessage(""); 
-                 console.log(`Optimized: ${Math.round(selectedFile.size/1024/1024)}MB -> ${Math.round(fileToUpload.size/1024/1024)}MB`);
-            }
-        }
-
         const formData = new FormData();
-        formData.append("file", fileToUpload);
+        formData.append("file", selectedFile);
         formData.append("user_id", currentUser.uid);
         formData.append("original_filename", selectedFile.name); 
 
@@ -185,8 +119,6 @@ const Dashboard = ({ user: currentUser }) => {
             onUploadProgress: (p) => {
                 const percent = Math.round((p.loaded * 100) / p.total);
                 setUploadProgress(percent);
-                // Only switch text when fully uploaded
-                if(percent === 100) setStatusMessage("AI Engine: Analyzing...");
             },
         });
 
@@ -196,12 +128,11 @@ const Dashboard = ({ user: currentUser }) => {
 
     } catch (err) {
         console.error(err);
-        let displayError = "Upload failed. Please try a smaller file.";
+        let displayError = "Upload failed. Please try a smaller file or Audio-only.";
         
         if (err.response) {
              if (err.response.status === 429) displayError = "Verbatim Engine Limit. Wait 60s.";
              else if (err.response.data && err.response.data.detail) {
-                 // Smart Copyright Handling
                  if (err.response.data.detail.includes("finish_reason")) {
                      displayError = "System Alert: Copyrighted content detected (Movies/TV). Please upload original content.";
                  } else {
@@ -209,13 +140,12 @@ const Dashboard = ({ user: currentUser }) => {
                  }
              }
         } else if (err.message === "Network Error") {
-            displayError = "Network Timeout. Connection unstable. Try a smaller file or Audio-only.";
+            displayError = "Network Timeout. Your file is too large for the current connection. Try an MP3 or Voice Note.";
         }
         
         setError(displayError);
     } finally {
         setIsLoading(false);
-        setStatusMessage("");
     }
   };
 
@@ -283,15 +213,12 @@ const Dashboard = ({ user: currentUser }) => {
                 <History size={16} className="text-verbatim-orange"/> <span className="hidden sm:inline">History</span>
             </button>
             
-            {/* TURBO ENGINE BADGE - Only shows when READY (Green). No annoying yellow loading state. */}
-            {ffmpegLoaded && (
-                <div className="flex items-center gap-2 px-3 py-2 bg-white/5 rounded-lg border border-white/10 animate-in fade-in">
-                    <div className="w-2 h-2 rounded-full animate-pulse bg-green-500"></div>
-                    <span className="text-[10px] md:text-xs font-bold text-gray-300 uppercase tracking-widest">
-                        Turbo Engine Ready
-                    </span>
-                </div>
-            )}
+            <div className="flex items-center gap-2 px-3 py-2 bg-white/5 rounded-lg border border-white/10 animate-in fade-in">
+                <div className="w-2 h-2 rounded-full animate-pulse bg-green-500"></div>
+                <span className="text-[10px] md:text-xs font-bold text-gray-300 uppercase tracking-widest">
+                    Engine Online
+                </span>
+            </div>
             
             <button onClick={handleLogout} className="p-2 text-gray-400 hover:text-red-400 transition-all hover:bg-white/5 rounded-lg">
                 <LogOut size={20} />
@@ -367,7 +294,7 @@ const Dashboard = ({ user: currentUser }) => {
               </div>
               <div className="flex justify-between items-center mt-4">
                 <p className="text-xs md:text-sm font-black text-verbatim-orange uppercase tracking-[0.2em] animate-pulse">
-                  {statusMessage || (uploadProgress < 100 ? `Securing Assets... ${uploadProgress}%` : "AI Engine: Generating Insights...")}
+                  {uploadProgress < 100 ? `Securing Assets... ${uploadProgress}%` : "AI Engine: Generating Insights..."}
                 </p>
                 <Loader2 className="animate-spin text-verbatim-orange" size={16} />
               </div>
