@@ -3,9 +3,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { 
   LogOut, Upload, FileAudio, CheckCircle, AlertCircle, Loader2, 
-  FileText, AlignLeft, Mic, Globe, Play, Languages, User, Cpu, 
+  FileText, AlignLeft, Mic, Globe, Play, Languages, User as UserIcon, Cpu, 
   XCircle, History, Download, ChevronRight, X 
-} from 'lucide-react';
+} from 'lucide-react'; // FIXED: Renamed User to UserIcon
 import { Link } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import { auth } from '../firebase';
@@ -192,7 +192,7 @@ const Dashboard = ({ user }) => {
              {/* USER BADGE (NEW) */}
              {user && (
                 <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-white/5 rounded-full border border-white/10">
-                    <User size={14} className="text-gray-400" />
+                    <UserIcon size={14} className="text-gray-400" /> {/* FIXED: Used UserIcon instead of User */}
                     <span className="text-xs font-medium text-gray-300 max-w-[100px] truncate">{user.email?.split('@')[0]}</span>
                 </div>
              )}
@@ -374,7 +374,7 @@ const Dashboard = ({ user }) => {
                   <div className="bg-white/5 p-5 rounded-2xl border border-white/10 hover:border-white/20 transition-all">
                     <label className="block text-xs font-black text-gray-500 uppercase mb-3 tracking-widest">3. Voice Model</label>
                     <div className="flex items-center gap-3 bg-black/40 rounded-xl px-4 py-3 border border-white/5 hover:border-verbatim-orange/50 transition-colors h-[50px]">
-                      <User size={18} className="text-verbatim-orange" />
+                      <UserIcon size={18} className="text-verbatim-orange" />
                       <select value={selectedVoiceId} onChange={(e) => setSelectedVoiceId(e.target.value)} className="bg-transparent w-full outline-none text-white text-sm font-medium cursor-pointer">
                         {availableVoices.length > 0 ? (
                             availableVoices.map(voice => <option key={voice.id} value={voice.id} className="bg-gray-900">{voice.name}</option>)
