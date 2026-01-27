@@ -1,19 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { 
   LogOut, Upload, FileAudio, CheckCircle, AlertCircle, Loader2, 
   FileText, AlignLeft, Mic, Globe, Play, Languages, User as UserIcon, Cpu, 
   XCircle, History, Download, ChevronRight, X 
-} from 'lucide-react'; // FIXED: Renamed User to UserIcon
+} from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import { auth } from '../firebase';
 
-// --- CLOUD CONFIG (MASTER PRESERVED) ---
+// --- CLOUD CONFIG ---
 const CLOUD_API_BASE = "https://verbatim-backend.onrender.com";
 
-const Dashboard = ({ user }) => {
+// FIX: Renamed prop to 'currentUser' to prevent minification crashes
+const Dashboard = ({ user: currentUser }) => {
   const [selectedFile, setSelectedFile] = useState(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [processingResults, setProcessingResults] = useState(null);
@@ -38,7 +38,7 @@ const Dashboard = ({ user }) => {
   const [generatedAudio, setGeneratedAudio] = useState(null);
   const [translatedText, setTranslatedText] = useState(null);
 
-  // 1. Initial Data Fetch (Languages + History)
+  // 1. Initial Data Fetch
   useEffect(() => {
     axios.get(`${CLOUD_API_BASE}/api/languages`)
       .then(res => {
@@ -47,12 +47,12 @@ const Dashboard = ({ user }) => {
       })
       .catch(err => console.error("Cloud Connection Error:", err));
 
-    if (user?.uid) fetchHistory();
-  }, [user]);
+    if (currentUser?.uid) fetchHistory();
+  }, [currentUser]);
 
   const fetchHistory = async () => {
     try {
-      const res = await axios.get(`${CLOUD_API_BASE}/api/history/${user.uid}`);
+      const res = await axios.get(`${CLOUD_API_BASE}/api/history/${currentUser.uid}`);
       setHistory(res.data);
     } catch (err) {
       console.error("Failed to load history", err);
@@ -98,7 +98,7 @@ const Dashboard = ({ user }) => {
 
   const handleUpload = async (e) => {
     if (e && e.preventDefault) e.preventDefault(); 
-    if (!selectedFile || !user) return;
+    if (!selectedFile || !currentUser) return;
     
     setIsLoading(true);
     setUploadProgress(0);
@@ -106,7 +106,7 @@ const Dashboard = ({ user }) => {
 
     const formData = new FormData();
     formData.append("file", selectedFile);
-    formData.append("user_id", user.uid);
+    formData.append("user_id", currentUser.uid);
 
     try {
       const response = await axios({
@@ -168,11 +168,9 @@ const Dashboard = ({ user }) => {
   return (
     <div className="min-h-screen bg-verbatim-navy text-white font-sans selection:bg-verbatim-orange overflow-x-hidden">
       
-      {/* --- RESPONSIVE HEADER FIX --- */}
       <nav className="fixed w-full top-0 left-0 z-50 border-b border-white/10 bg-verbatim-navy/95 backdrop-blur-xl transition-all shadow-lg">
         <div className="max-w-7xl mx-auto px-4 py-3 md:py-4 flex flex-wrap justify-between items-center gap-4">
           
-          {/* LOGO SECTION */}
           <div className="flex items-center gap-4 cursor-pointer group" onClick={() => window.location.href = '/dashboard'}>
             <div className="relative flex items-center justify-center">
               <img 
@@ -187,13 +185,11 @@ const Dashboard = ({ user }) => {
             </div>
           </div>
 
-          {/* CONTROLS SECTION - WRAPS ON MOBILE */}
           <div className="flex items-center gap-3 md:gap-4 flex-wrap justify-end">
-             {/* USER BADGE (NEW) */}
-             {user && (
+             {currentUser && (
                 <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-white/5 rounded-full border border-white/10">
-                    <UserIcon size={14} className="text-gray-400" /> {/* FIXED: Used UserIcon instead of User */}
-                    <span className="text-xs font-medium text-gray-300 max-w-[100px] truncate">{user.email?.split('@')[0]}</span>
+                    <UserIcon size={14} className="text-gray-400" />
+                    <span className="text-xs font-medium text-gray-300 max-w-[100px] truncate">{currentUser.email?.split('@')[0]}</span>
                 </div>
              )}
 
@@ -201,7 +197,6 @@ const Dashboard = ({ user }) => {
                 <History size={16} className="text-verbatim-orange"/> <span className="hidden sm:inline">History</span>
             </button>
             
-            {/* ENGINE STATUS (ALWAYS VISIBLE NOW) */}
             <div className="flex items-center gap-2 px-3 py-2 bg-white/5 rounded-lg border border-white/10">
                 <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                 <span className="text-[10px] md:text-xs font-bold text-gray-300 uppercase tracking-widest">Engine Online</span>
@@ -214,51 +209,46 @@ const Dashboard = ({ user }) => {
         </div>
       </nav>
 
-      <AnimatePresence>
-        {showHistory && (
-            <>
-                <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} onClick={() => setShowHistory(false)} className="fixed inset-0 bg-black/60 z-[60] backdrop-blur-sm" />
-                <motion.div initial={{x: "100%"}} animate={{x: 0}} exit={{x: "100%"}} className="fixed top-0 right-0 h-full w-full md:w-96 bg-verbatim-navy border-l border-white/10 z-[70] shadow-2xl p-6 overflow-y-auto">
-                    <div className="h-20 md:hidden"></div> 
-                    <div className="flex items-center justify-between mb-8 pt-10 md:pt-0">
-                        <h3 className="text-2xl font-black flex items-center gap-2"><History className="text-verbatim-orange"/> Project History</h3>
-                        <button onClick={() => setShowHistory(false)}><X className="text-gray-400 hover:text-white" /></button>
-                    </div>
-                    <div className="space-y-4">
-                        {history.length === 0 ? (
-                            <p className="text-gray-500 text-center italic">No history found.</p>
-                        ) : (
-                            history.map((item) => (
-                                <div key={item.id} onClick={() => loadFromHistory(item)} className="p-4 bg-white/5 hover:bg-white/10 border border-white/5 rounded-xl cursor-pointer group transition-all">
-                                    <div className="flex items-center justify-between mb-2">
-                                        <span className="text-sm font-bold text-white group-hover:text-verbatim-orange truncate max-w-[200px]">{item.filename}</span>
-                                        <ChevronRight size={16} className="text-gray-500 group-hover:translate-x-1 transition-transform"/>
-                                    </div>
-                                    <p className="text-xs text-gray-500">{new Date(item.upload_time).toLocaleDateString()} • {new Date(item.upload_time).toLocaleTimeString()}</p>
+      {/* --- HISTORY MODAL (SIMPLIFIED FOR STABILITY) --- */}
+      {showHistory && (
+        <div className="fixed inset-0 z-[60]">
+             <div onClick={() => setShowHistory(false)} className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+             <div className="absolute top-0 right-0 h-full w-full md:w-96 bg-verbatim-navy border-l border-white/10 z-[70] shadow-2xl p-6 overflow-y-auto transition-transform duration-300">
+                <div className="h-20 md:hidden"></div> 
+                <div className="flex items-center justify-between mb-8 pt-10 md:pt-0">
+                    <h3 className="text-2xl font-black flex items-center gap-2"><History className="text-verbatim-orange"/> Project History</h3>
+                    <button onClick={() => setShowHistory(false)}><X className="text-gray-400 hover:text-white" /></button>
+                </div>
+                <div className="space-y-4">
+                    {history.length === 0 ? (
+                        <p className="text-gray-500 text-center italic">No history found.</p>
+                    ) : (
+                        history.map((item) => (
+                            <div key={item.id} onClick={() => loadFromHistory(item)} className="p-4 bg-white/5 hover:bg-white/10 border border-white/5 rounded-xl cursor-pointer group transition-all">
+                                <div className="flex items-center justify-between mb-2">
+                                    <span className="text-sm font-bold text-white group-hover:text-verbatim-orange truncate max-w-[200px]">{item.filename}</span>
+                                    <ChevronRight size={16} className="text-gray-500 group-hover:translate-x-1 transition-transform"/>
                                 </div>
-                            ))
-                        )}
-                    </div>
-                </motion.div>
-            </>
-        )}
-      </AnimatePresence>
+                                <p className="text-xs text-gray-500">{new Date(item.upload_time).toLocaleDateString()} • {new Date(item.upload_time).toLocaleTimeString()}</p>
+                            </div>
+                        ))
+                    )}
+                </div>
+            </div>
+        </div>
+      )}
 
-      {/* --- CONTENT PADDING FIX --- */}
-      {/* Changed pt-48 to pt-32 to reduce top gap, added pb-32 for bottom safe zone */}
       <main className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-12 pt-32 pb-40">
         <div className="glass-card rounded-3xl p-6 md:p-12 text-center mb-12 border border-white/5 shadow-2xl bg-gradient-to-b from-white/5 to-transparent">
           <h2 className="text-2xl md:text-4xl font-black mb-4">Transform Your Media</h2>
           
-          <AnimatePresence>
             {error && (
-              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="mb-8 p-6 bg-red-500/10 border border-red-500/30 rounded-2xl flex items-center gap-4 text-left mx-auto max-w-2xl">
+              <div className="mb-8 p-6 bg-red-500/10 border border-red-500/30 rounded-2xl flex items-center gap-4 text-left mx-auto max-w-2xl">
                 <div className="p-3 bg-red-500/20 rounded-full text-red-500"><AlertCircle size={24} /></div>
                 <div><h4 className="font-bold text-red-400 uppercase tracking-tighter">System Alert</h4><p className="text-red-200/80 text-sm leading-tight">{error}</p></div>
                 <button onClick={() => setError(null)} className="ml-auto text-red-500 hover:text-white transition-colors"><XCircle size={20}/></button>
-              </motion.div>
+              </div>
             )}
-          </AnimatePresence>
 
           <p className="text-gray-400 mb-10 max-w-xl mx-auto text-base md:text-lg">Upload audio or video. Let Verbatim handle the heavy lifting.</p>
           
@@ -283,7 +273,7 @@ const Dashboard = ({ user }) => {
           {isLoading && (
             <div className="mt-10 max-w-md mx-auto">
               <div className="w-full bg-white/5 rounded-full h-4 overflow-hidden border border-white/10 p-1">
-                <motion.div initial={{width: 0}} animate={{width: `${uploadProgress}%`}} className="bg-gradient-to-r from-verbatim-orange to-pink-500 h-full rounded-full" />
+                <div style={{width: `${uploadProgress}%`}} className="bg-gradient-to-r from-verbatim-orange to-pink-500 h-full rounded-full transition-all duration-300" />
               </div>
               <div className="flex justify-between items-center mt-4">
                 <p className="text-xs md:text-sm font-black text-verbatim-orange uppercase tracking-[0.2em] animate-pulse">
@@ -296,7 +286,7 @@ const Dashboard = ({ user }) => {
         </div>
 
         {processingResults && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
+          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
             <div className="glass-card p-6 md:p-10 rounded-3xl border border-white/10 shadow-2xl">
               <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-8 gap-4">
                 <div className="flex items-center gap-3">
@@ -344,15 +334,13 @@ const Dashboard = ({ user }) => {
                   <p className="text-gray-400 mt-2 md:ml-16 text-sm md:text-lg">Translate, Dub, and Adapt your content for a global audience.</p>
                 </div>
 
-                <AnimatePresence>
                     {studioError && (
-                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-xl flex items-center gap-3 text-left">
+                    <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-xl flex items-center gap-3 text-left">
                         <AlertCircle className="text-red-500 flex-shrink-0" size={20} />
                         <p className="text-red-200/90 text-sm font-medium">{studioError}</p>
                         <button onClick={() => setStudioError(null)} className="ml-auto text-red-500 hover:text-white"><XCircle size={18}/></button>
-                    </motion.div>
+                    </div>
                     )}
-                </AnimatePresence>
 
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
                   <div className="bg-white/5 p-5 rounded-2xl border border-white/10 hover:border-white/20 transition-all">
@@ -436,7 +424,7 @@ const Dashboard = ({ user }) => {
                 </div>
               </div>
             </div>
-          </motion.div>
+          </div>
         )}
       </main>
 
