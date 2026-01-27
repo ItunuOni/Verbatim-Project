@@ -12,7 +12,7 @@ import { auth } from '../firebase';
 // --- CLOUD CONFIG (MASTER PRESERVED) ---
 const CLOUD_API_BASE = "https://verbatim-backend.onrender.com";
 
-// FIX: Renamed prop to 'currentUser' to prevent minification crashes
+// FIX 1: Renamed prop to 'currentUser' to stop the 'n is not defined' crash
 const Dashboard = ({ user: currentUser }) => {
   const [selectedFile, setSelectedFile] = useState(null);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -43,7 +43,7 @@ const Dashboard = ({ user: currentUser }) => {
     axios.get(`${CLOUD_API_BASE}/api/languages`)
       .then(res => {
         setAvailableLanguages(res.data);
-        // Default fetch to ensure dropdown isn't empty
+        // Default fetch
         axios.get(`${CLOUD_API_BASE}/api/voices?language=English (US)`)
              .then(v => {
                  setAvailableVoices(v.data);
@@ -171,13 +171,12 @@ const Dashboard = ({ user: currentUser }) => {
   const LOGO_PATH = "/logo.png";
 
   return (
+    // FIX 2: Removed framer-motion animations. This removes the 'n is not defined' crash source.
     <div className="min-h-screen bg-verbatim-navy text-white font-sans selection:bg-verbatim-orange overflow-x-hidden">
       
-      {/* --- RESPONSIVE HEADER FIX --- */}
       <nav className="fixed w-full top-0 left-0 z-50 border-b border-white/10 bg-verbatim-navy/95 backdrop-blur-xl transition-all shadow-lg">
         <div className="max-w-7xl mx-auto px-4 py-3 md:py-4 flex flex-wrap justify-between items-center gap-4">
           
-          {/* LOGO SECTION */}
           <div className="flex items-center gap-4 cursor-pointer group" onClick={() => window.location.href = '/dashboard'}>
             <div className="relative flex items-center justify-center">
               <img 
@@ -192,9 +191,8 @@ const Dashboard = ({ user: currentUser }) => {
             </div>
           </div>
 
-          {/* CONTROLS SECTION - WRAPS ON MOBILE */}
           <div className="flex items-center gap-3 md:gap-4 flex-wrap justify-end">
-             {/* USER BADGE (NEW) */}
+             {/* USER BADGE */}
              {currentUser && (
                 <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-white/5 rounded-full border border-white/10">
                     <UserIcon size={14} className="text-gray-400" />
@@ -206,7 +204,6 @@ const Dashboard = ({ user: currentUser }) => {
                 <History size={16} className="text-verbatim-orange"/> <span className="hidden sm:inline">History</span>
             </button>
             
-            {/* ENGINE STATUS (ALWAYS VISIBLE NOW) */}
             <div className="flex items-center gap-2 px-3 py-2 bg-white/5 rounded-lg border border-white/10">
                 <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                 <span className="text-[10px] md:text-xs font-bold text-gray-300 uppercase tracking-widest">Engine Online</span>
@@ -247,8 +244,6 @@ const Dashboard = ({ user: currentUser }) => {
             </div>
         )}
 
-      {/* --- CONTENT PADDING FIX --- */}
-      {/* Changed pt-48 to pt-32 to reduce top gap, added pb-32 for bottom safe zone */}
       <main className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-12 pt-32 pb-40">
         <div className="glass-card rounded-3xl p-6 md:p-12 text-center mb-12 border border-white/5 shadow-2xl bg-gradient-to-b from-white/5 to-transparent">
           <h2 className="text-2xl md:text-4xl font-black mb-4">Transform Your Media</h2>
