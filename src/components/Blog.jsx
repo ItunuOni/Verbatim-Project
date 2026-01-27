@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Copy, Check, ArrowLeft, Globe, Mic, Cpu } from 'lucide-react'; // Added icons for cleaner UI
+import { Copy, Check, ArrowLeft, Globe, Mic, Cpu } from 'lucide-react';
 
 const Blog = () => {
     const location = useLocation();
     
     // --- 1. SMART DATA HANDLER ---
-    // Fix "Undefined" errors by providing solid fallbacks
     const rawTitle = location.state?.blogTitle;
     const cleanTitle = (rawTitle && !rawTitle.includes("undefined")) 
         ? rawTitle 
@@ -33,7 +32,6 @@ const Blog = () => {
     // YOUR VERIFIED RENDER URL
     const API_BASE_URL = "https://verbatim-backend.onrender.com";
 
-    // Load languages on startup
     useEffect(() => {
         fetch(`${API_BASE_URL}/api/languages`)
             .then(res => res.json())
@@ -41,7 +39,6 @@ const Blog = () => {
             .catch(err => console.error("Language Fetch Error:", err));
     }, []);
 
-    // Load voices whenever language changes
     useEffect(() => {
         fetch(`${API_BASE_URL}/api/voices?language=${encodeURIComponent(selectedLang)}`)
             .then(res => res.json())
@@ -66,7 +63,7 @@ const Blog = () => {
 
         setIsProcessing(true);
         const formData = new FormData();
-        formData.append("text", blogContent); // Use the raw content for translation
+        formData.append("text", blogContent); 
         formData.append("language", selectedLang);
         formData.append("voice_id", selectedVoice);
         formData.append("emotion", selectedEmotion);
@@ -89,19 +86,15 @@ const Blog = () => {
     };
 
     // --- 4. THE "MARKDOWN" BEAUTIFIER ---
-    // This function turns ugly "### Title" into pretty HTML
     const formatText = (text) => {
         if (!text) return null;
         return text.split('\n').map((line, index) => {
-            // Handle Headers (###)
             if (line.startsWith('### ') || line.startsWith('#### ')) {
                 return <h3 key={index} className="text-xl md:text-2xl font-bold text-white mt-6 mb-3">{line.replace(/#+\s/, '')}</h3>;
             }
             if (line.startsWith('## ')) {
                 return <h2 key={index} className="text-2xl md:text-3xl font-black text-verbatim-orange mt-8 mb-4">{line.replace('## ', '')}</h2>;
             }
-            // Handle Bold (**text**) - Simple replace for now, or keep as is if complex
-            // For a simple blog, just rendering clean paragraphs is a huge upgrade
             if (line.trim() === '') {
                 return <br key={index} />;
             }
@@ -121,63 +114,39 @@ const Blog = () => {
             </nav>
 
             <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8 lg:gap-12">
-                
-                {/* LEFT COLUMN: DYNAMIC BLOG CONTENT (Span 2 columns) */}
                 <div className="lg:col-span-2 space-y-8">
                     <div className="bg-white/5 p-8 md:p-12 rounded-3xl border border-white/10 shadow-2xl relative overflow-hidden">
-                        {/* Decorative background element */}
                         <div className="absolute top-0 right-0 p-12 bg-verbatim-orange/10 rounded-bl-[100px] -mr-10 -mt-10 blur-3xl pointer-events-none"></div>
-
-                        <h1 className="text-3xl md:text-5xl font-black mb-8 leading-tight">
-                            {blogTitle}
-                        </h1>
-                        
-                        <div className="prose prose-invert max-w-none">
-                            {formatText(blogContent)}
-                        </div>
+                        <h1 className="text-3xl md:text-5xl font-black mb-8 leading-tight">{blogTitle}</h1>
+                        <div className="prose prose-invert max-w-none">{formatText(blogContent)}</div>
                     </div>
                     
                     {translatedText && (
                         <div className="bg-gradient-to-r from-gray-900 to-black p-1 rounded-3xl animate-in fade-in slide-in-from-bottom-4 duration-700">
                              <div className="bg-[#0f172a] p-8 rounded-[22px] border border-white/10 relative">
                                 <div className="absolute top-4 right-4">
-                                     <button 
-                                        onClick={handleCopy}
-                                        className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-verbatim-orange hover:text-white border border-white/10 rounded-xl text-xs font-bold transition-all uppercase tracking-widest"
-                                    >
-                                        {copied ? <Check size={14} /> : <Copy size={14} />}
-                                        {copied ? "COPIED!" : "COPY TRANSLATION"}
-                                    </button>
+                                     <button onClick={handleCopy} className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-verbatim-orange hover:text-white border border-white/10 rounded-xl text-xs font-bold transition-all uppercase tracking-widest">
+                                         {copied ? <Check size={14} /> : <Copy size={14} />}
+                                         {copied ? "COPIED!" : "COPY TRANSLATION"}
+                                     </button>
                                 </div>
-                                <h3 className="text-xs font-black uppercase tracking-[0.2em] text-verbatim-orange mb-6 flex items-center gap-2">
-                                    <Globe size={16}/> Translated Script ({selectedLang})
-                                </h3>
-                                <p className="text-lg text-gray-300 italic leading-relaxed font-serif border-l-4 border-verbatim-orange pl-6">
-                                    "{translatedText}"
-                                </p>
+                                <h3 className="text-xs font-black uppercase tracking-[0.2em] text-verbatim-orange mb-6 flex items-center gap-2"><Globe size={16}/> Translated Script ({selectedLang})</h3>
+                                <p className="text-lg text-gray-300 italic leading-relaxed font-serif border-l-4 border-verbatim-orange pl-6">"{translatedText}"</p>
                              </div>
                         </div>
                     )}
                 </div>
 
-                {/* RIGHT COLUMN: CONTROL PANEL (Sticky) */}
                 <div className="lg:col-span-1">
                     <div className="bg-white/5 backdrop-blur-xl p-6 md:p-8 rounded-3xl border border-white/10 shadow-2xl sticky top-8">
                         <div className="flex items-center gap-4 mb-8 border-b border-white/10 pb-6">
-                            <div className="p-3 bg-gradient-to-br from-verbatim-orange to-pink-600 rounded-xl shadow-lg shadow-orange-500/20">
-                                <Mic className="text-white" size={24} />
-                            </div>
-                            <div>
-                                <h2 className="text-xl font-black uppercase tracking-tight">Studio Controls</h2>
-                                <p className="text-xs text-gray-400 font-medium">Localize & Dub Content</p>
-                            </div>
+                            <div className="p-3 bg-gradient-to-br from-verbatim-orange to-pink-600 rounded-xl shadow-lg shadow-orange-500/20"><Mic className="text-white" size={24} /></div>
+                            <div><h2 className="text-xl font-black uppercase tracking-tight">Studio Controls</h2><p className="text-xs text-gray-400 font-medium">Localize & Dub Content</p></div>
                         </div>
 
                         <div className="space-y-6">
                             <div className="space-y-2">
-                                <label className="flex items-center gap-2 text-xs font-bold text-gray-400 uppercase tracking-widest">
-                                    <Globe size={12} /> Target Language
-                                </label>
+                                <label className="flex items-center gap-2 text-xs font-bold text-gray-400 uppercase tracking-widest"><Globe size={12} /> Target Language</label>
                                 <div className="relative">
                                     <select value={selectedLang} onChange={(e) => setSelectedLang(e.target.value)} className="w-full bg-black/40 border border-white/10 text-white p-4 rounded-xl outline-none focus:border-verbatim-orange focus:ring-1 focus:ring-verbatim-orange transition-all appearance-none cursor-pointer text-sm font-medium hover:bg-black/60">
                                         {languages.map(lang => <option key={lang} value={lang} className="bg-gray-900">{lang}</option>)}
@@ -187,9 +156,7 @@ const Blog = () => {
                             </div>
 
                             <div className="space-y-2">
-                                <label className="flex items-center gap-2 text-xs font-bold text-gray-400 uppercase tracking-widest">
-                                    <Mic size={12} /> AI Voice Model
-                                </label>
+                                <label className="flex items-center gap-2 text-xs font-bold text-gray-400 uppercase tracking-widest"><Mic size={12} /> AI Voice Model</label>
                                 <div className="relative">
                                     <select value={selectedVoice} onChange={(e) => setSelectedVoice(e.target.value)} className="w-full bg-black/40 border border-white/10 text-white p-4 rounded-xl outline-none focus:border-verbatim-orange focus:ring-1 focus:ring-verbatim-orange transition-all appearance-none cursor-pointer text-sm font-medium hover:bg-black/60">
                                         {voices.map(v => <option key={v.id} value={v.id} className="bg-gray-900">{v.name}</option>)}
@@ -199,9 +166,7 @@ const Blog = () => {
                             </div>
 
                             <div className="space-y-2">
-                                <label className="flex items-center gap-2 text-xs font-bold text-gray-400 uppercase tracking-widest">
-                                    <Cpu size={12} /> Emotion Style
-                                </label>
+                                <label className="flex items-center gap-2 text-xs font-bold text-gray-400 uppercase tracking-widest"><Cpu size={12} /> Emotion Style</label>
                                 <div className="relative">
                                     <select value={selectedEmotion} onChange={(e) => setSelectedEmotion(e.target.value)} className="w-full bg-black/40 border border-white/10 text-white p-4 rounded-xl outline-none focus:border-verbatim-orange focus:ring-1 focus:ring-verbatim-orange transition-all appearance-none cursor-pointer text-sm font-medium hover:bg-black/60">
                                         <option value="Neutral" className="bg-gray-900">Neutral / Natural</option>
@@ -214,16 +179,8 @@ const Blog = () => {
                                 </div>
                             </div>
 
-                            <button 
-                                onClick={handleVerbatimProcess} 
-                                disabled={isProcessing} 
-                                className="w-full mt-4 bg-gradient-to-r from-verbatim-orange to-pink-600 hover:from-orange-500 hover:to-pink-500 py-4 rounded-xl font-black text-sm uppercase tracking-widest shadow-lg shadow-orange-900/20 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                            >
-                                {isProcessing ? (
-                                    <>Processing <span className="animate-pulse">...</span></>
-                                ) : (
-                                    <>Generate Audio Asset</>
-                                )}
+                            <button onClick={handleVerbatimProcess} disabled={isProcessing} className="w-full mt-4 bg-gradient-to-r from-verbatim-orange to-pink-600 hover:from-orange-500 hover:to-pink-500 py-4 rounded-xl font-black text-sm uppercase tracking-widest shadow-lg shadow-orange-900/20 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                                {isProcessing ? (<>Processing <span className="animate-pulse">...</span></>) : (<>Generate Audio Asset</>)}
                             </button>
 
                             {audioUrl && (
@@ -243,4 +200,4 @@ const Blog = () => {
     );
 };
 
-export default Blog;n
+export default Blog;

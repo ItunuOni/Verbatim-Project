@@ -1,5 +1,5 @@
 import React from 'react';
-import { motion } from 'framer-motion';
+// REMOVED: import { motion } from 'framer-motion'; (This was crashing the build)
 import { ArrowRight, Mic, Globe, Zap, Volume2, Layers, Radio } from 'lucide-react';
 import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import { auth } from '../firebase';
@@ -21,10 +21,6 @@ const LandingPage = () => {
     <div className="min-h-screen bg-verbatim-navy text-white font-sans selection:bg-verbatim-orange selection:text-white overflow-x-hidden">
       {/* Navigation - TABLET & MOBILE OPTIMIZED */}
       <nav className="glass fixed w-full z-50 top-0 left-0 border-b border-white/10 backdrop-blur-xl">
-        {/* FIX APPLIED HERE: */}
-        {/* 1. 'h-auto': Flexible height for all devices */}
-        {/* 2. 'sm:flex-row': On Tablet (sm) and up, go SIDE-BY-SIDE. On Mobile, stack (flex-col). */}
-        {/* 3. 'py-4': Consistent padding */}
         <div className="max-w-7xl mx-auto px-6 h-auto py-4 flex flex-col sm:flex-row justify-between items-center gap-4 sm:gap-0">
           
           {/* THE OFFICIAL LOGO BUTTON */}
@@ -51,7 +47,6 @@ const LandingPage = () => {
           </div>
 
           {/* LOGIN BUTTON */}
-          {/* FIX: w-full on mobile (easier tap), w-auto on Tablet/Desktop (professional look) */}
           <button 
             onClick={handleGoogleLogin}
             className="w-full sm:w-auto px-8 py-3 bg-verbatim-orange text-white font-bold rounded-full hover:bg-orange-600 transition-all shadow-[0_0_20px_rgba(255,77,0,0.4)] hover:scale-105 active:scale-95"
@@ -64,7 +59,8 @@ const LandingPage = () => {
       {/* Hero Section */}
       <header className="relative pt-48 sm:pt-64 pb-20 px-6 overflow-hidden">
         <div className="max-w-5xl mx-auto text-center relative z-10">
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
+          {/* REMOVED motion.div, replaced with standard div to prevent crash */}
+          <div>
             
             <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-verbatim-orange/10 text-verbatim-orange border border-verbatim-orange/20 text-sm font-bold mb-8 uppercase tracking-wider">
               <span className="w-2 h-2 rounded-full bg-verbatim-orange animate-pulse"></span>
@@ -90,7 +86,7 @@ const LandingPage = () => {
                 Get Started ASAP <ArrowRight size={24} />
               </button>
             </div>
-          </motion.div>
+          </div>
         </div>
         
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-verbatim-orange/15 rounded-full blur-[150px] -z-10 animate-pulse"></div>
@@ -113,7 +109,8 @@ const LandingPage = () => {
               { icon: <Zap size={32} />, title: "Video-to-Audio", desc: "Smart extraction engine processes video files at 40x speed." },
               { icon: <Radio size={32} />, title: "Live Transcription", desc: "Coming in v2.0: Real-time speech-to-text for live broadcasts.", isComingSoon: true }
             ].map((feature, i) => (
-              <motion.div 
+              // REMOVED motion.div, replaced with standard div
+              <div 
                 key={i} 
                 className={`glass-card p-8 rounded-2xl border border-white/5 hover:border-verbatim-orange/50 transition-all relative overflow-hidden ${feature.isComingSoon ? 'opacity-80' : ''}`}
               >
@@ -125,7 +122,7 @@ const LandingPage = () => {
                 <div className="mb-6 text-verbatim-orange">{feature.icon}</div>
                 <h3 className="text-xl font-bold mb-3">{feature.title}</h3>
                 <p className="text-verbatim-light leading-relaxed text-sm">{feature.desc}</p>
-              </motion.div>
+              </div>
             ))}
           </div>
         </div>
