@@ -168,34 +168,48 @@ const Dashboard = ({ user }) => {
   return (
     <div className="min-h-screen bg-verbatim-navy text-white font-sans selection:bg-verbatim-orange overflow-x-hidden">
       
-      <nav className="fixed w-full top-0 left-0 z-50 border-b border-white/10 bg-verbatim-navy/90 backdrop-blur-xl transition-all">
-        <div className="max-w-7xl mx-auto px-4 md:px-6 h-auto md:h-32 py-4 md:py-0 flex flex-col md:flex-row justify-between items-center gap-4">
-          <div className="flex items-center gap-6 cursor-pointer group relative" onClick={() => window.location.href = '/dashboard'}>
+      {/* --- RESPONSIVE HEADER FIX --- */}
+      <nav className="fixed w-full top-0 left-0 z-50 border-b border-white/10 bg-verbatim-navy/95 backdrop-blur-xl transition-all shadow-lg">
+        <div className="max-w-7xl mx-auto px-4 py-3 md:py-4 flex flex-wrap justify-between items-center gap-4">
+          
+          {/* LOGO SECTION */}
+          <div className="flex items-center gap-4 cursor-pointer group" onClick={() => window.location.href = '/dashboard'}>
             <div className="relative flex items-center justify-center">
-              <div className="absolute -inset-4 bg-gradient-to-tr from-verbatim-orange to-pink-500 rounded-2xl blur-md opacity-0 group-hover:opacity-100 transition-all duration-500 shadow-[0_0_20px_rgba(255,77,0,0.4)]"></div>
               <img 
                 src={LOGO_PATH} 
                 alt="Verbatim Logo" 
-                width="140" 
-                height="96"
-                className="relative h-24 w-auto min-w-[140px] rounded-xl border-2 border-verbatim-orange bg-white p-1 transform group-hover:scale-110 transition-all duration-300 z-10 shadow-2xl object-contain" 
+                className="h-12 w-auto md:h-16 rounded-lg border border-verbatim-orange bg-white p-1 object-contain" 
               />
             </div>
             <div className="flex flex-col -space-y-1">
-              <span className="text-3xl font-black tracking-tighter italic group-hover:text-verbatim-orange transition-colors duration-300">VERBATIM</span>
-              <span className="text-[11px] font-bold tracking-[0.3em] text-verbatim-orange opacity-90 uppercase">Transcription Pro</span>
+              <span className="text-xl md:text-2xl font-black tracking-tighter italic">VERBATIM</span>
+              <span className="text-[9px] md:text-[10px] font-bold tracking-[0.2em] text-verbatim-orange uppercase">Transcription Pro</span>
             </div>
           </div>
 
-          <div className="flex items-center gap-6 w-full md:w-auto justify-center">
-            <button onClick={() => setShowHistory(true)} className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 rounded-full border border-white/10 transition-all text-sm font-bold uppercase tracking-wider">
-                <History size={16} className="text-verbatim-orange"/> History
+          {/* CONTROLS SECTION - WRAPS ON MOBILE */}
+          <div className="flex items-center gap-3 md:gap-4 flex-wrap justify-end">
+             {/* USER BADGE (NEW) */}
+             {user && (
+                <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-white/5 rounded-full border border-white/10">
+                    <User size={14} className="text-gray-400" />
+                    <span className="text-xs font-medium text-gray-300 max-w-[100px] truncate">{user.email?.split('@')[0]}</span>
+                </div>
+             )}
+
+            <button onClick={() => setShowHistory(true)} className="flex items-center gap-2 px-3 py-2 bg-white/5 hover:bg-white/10 rounded-lg border border-white/10 transition-all text-xs font-bold uppercase tracking-wider">
+                <History size={16} className="text-verbatim-orange"/> <span className="hidden sm:inline">History</span>
             </button>
-            <div className="hidden md:flex items-center gap-2 px-4 py-2 bg-white/5 rounded-full border border-white/10">
+            
+            {/* ENGINE STATUS (ALWAYS VISIBLE NOW) */}
+            <div className="flex items-center gap-2 px-3 py-2 bg-white/5 rounded-lg border border-white/10">
                 <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                <span className="text-xs font-bold text-gray-300 uppercase tracking-widest">Engine Online</span>
+                <span className="text-[10px] md:text-xs font-bold text-gray-300 uppercase tracking-widest">Engine Online</span>
             </div>
-            <button onClick={handleLogout} className="text-gray-400 hover:text-red-400 transition-all hover:scale-110 active:scale-95"><LogOut size={24} /></button>
+            
+            <button onClick={handleLogout} className="p-2 text-gray-400 hover:text-red-400 transition-all hover:bg-white/5 rounded-lg">
+                <LogOut size={20} />
+            </button>
           </div>
         </div>
       </nav>
@@ -230,7 +244,9 @@ const Dashboard = ({ user }) => {
         )}
       </AnimatePresence>
 
-      <main className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-12 pt-48 md:pt-40">
+      {/* --- CONTENT PADDING FIX --- */}
+      {/* Changed pt-48 to pt-32 to reduce top gap, added pb-32 for bottom safe zone */}
+      <main className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-12 pt-32 pb-40">
         <div className="glass-card rounded-3xl p-6 md:p-12 text-center mb-12 border border-white/5 shadow-2xl bg-gradient-to-b from-white/5 to-transparent">
           <h2 className="text-2xl md:text-4xl font-black mb-4">Transform Your Media</h2>
           
@@ -434,7 +450,6 @@ const Dashboard = ({ user }) => {
         className="fixed bottom-6 right-6 z-[100] group flex items-center gap-3 bg-verbatim-navy/95 backdrop-blur-xl border border-verbatim-orange/40 p-3 rounded-2xl shadow-2xl hover:border-verbatim-orange hover:bg-verbatim-orange transition-all duration-300 active:scale-95"
       >
         <div className="relative">
-            {/* SUBTLE GLOW EFFECT - REDUCED FOR BETTER UX */}
             <div className="absolute -inset-1 bg-verbatim-orange rounded-full blur-sm opacity-0 group-hover:opacity-60 transition-opacity"></div>
             <div className="bg-verbatim-orange/20 p-2.5 rounded-xl group-hover:bg-white/20 transition-colors">
                 <FileText size={20} className="text-verbatim-orange group-hover:text-white" />
