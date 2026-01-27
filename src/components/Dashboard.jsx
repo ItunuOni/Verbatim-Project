@@ -42,7 +42,13 @@ const Dashboard = ({ user: currentUser }) => {
 
   // 1. Initial Data Fetch & Load FFmpeg
   useEffect(() => {
-    loadFfmpeg(); 
+    // BULLETPROOF CHECK: Only load engine if browser supports High-Performance headers
+    const isCompatible = window.crossOriginIsolated || window.SharedArrayBuffer;
+    if (isCompatible) {
+        loadFfmpeg(); 
+    } else {
+        console.warn("Turbo Engine skipped: Browser environment does not support SharedArrayBuffer.");
+    }
     
     axios.get(`${CLOUD_API_BASE}/api/languages`)
       .then(res => {
@@ -59,12 +65,6 @@ const Dashboard = ({ user: currentUser }) => {
   }, [currentUser]);
 
   const loadFfmpeg = async () => {
-    // Safety Check: If browser doesn't support Turbo Engine (SharedArrayBuffer), don't try to load
-    if (!window.SharedArrayBuffer) {
-        console.warn("Turbo Engine not supported in this browser environment.");
-        return;
-    }
-
     const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
     const ffmpeg = ffmpegRef.current;
     
@@ -75,9 +75,11 @@ const Dashboard = ({ user: currentUser }) => {
                 wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
             });
             setFfmpegLoaded(true);
-            console.log("Turbo Engine (FFmpeg) Loaded");
+            console.log("Turbo Engine (FFmpeg) Loaded Successfully");
         } catch (err) {
-            console.error("Failed to load Turbo Engine:", err);
+            // SILENT FAIL: If it fails, we just don't set ffmpegLoaded to true.
+            // The app will function normally using standard upload.
+            console.error("Turbo Engine failed to initialize (Using Standard Mode):", err);
         }
     }
   };
@@ -131,22 +133,19 @@ const Dashboard = ({ user: currentUser }) => {
   // --- THE TURBO EXTRACTOR ---
   const transcode = async (file) => {
     const ffmpeg = ffmpegRef.current;
-    if (!ffmpegLoaded) return file; // Fallback if engine failed
+    if (!ffmpegLoaded) return file; 
 
-    // Write the file to memory
-    await ffmpeg.writeFile('input.mp4', await fetchFile(file));
-
-    // Run FFmpeg command to extract audio (fast)
-    await ffmpeg.exec(['-i', 'input.mp4', '-q:a', '0', '-map', 'a', 'output.mp3']);
-
-    // Read the result
-    const data = await ffmpeg.readFile('output.mp3');
-    
-    // Create a new lightweight file
-    const audioBlob = new Blob([data.buffer], { type: 'audio/mp3' });
-    const audioFile = new File([audioBlob], "extracted_audio.mp3", { type: 'audio/mp3' });
-    
-    return audioFile;
+    // SAFETY TRY/CATCH: If transcoding crashes, return original file
+    try {
+        await ffmpeg.writeFile('input.mp4', await fetchFile(file));
+        await ffmpeg.exec(['-i', 'input.mp4', '-q:a', '0', '-map', 'a', 'output.mp3']);
+        const data = await ffmpeg.readFile('output.mp3');
+        const audioBlob = new Blob([data.buffer], { type: 'audio/mp3' });
+        return new File([audioBlob], "extracted_audio.mp3", { type: 'audio/mp3' });
+    } catch (err) {
+        console.error("Optimization error (reverting to original):", err);
+        return file;
+    }
   };
 
   const handleUpload = async (e) => {
@@ -156,29 +155,26 @@ const Dashboard = ({ user: currentUser }) => {
     setIsLoading(true);
     setUploadProgress(0);
     setError(null);
-    setStatusMessage(""); // RESET: Clear message so "Securing Assets... X%" shows by default
+    setStatusMessage(""); // CRITICAL: Reset message so "Securing Assets... %" shows
     
     try {
         let fileToUpload = selectedFile;
 
-        // CHECK: Is it a video? If so, extract audio first.
+        // CHECK: Is it a video? If so, try to optimize
         if (selectedFile.type.startsWith('video/')) {
-            console.log("Video detected. Checking Turbo Engine...");
-            
-            // Only use Turbo if loaded
             if (ffmpegLoaded) {
-                 setStatusMessage("Turbo Engine: Optimizing Video..."); // Show feedback during conversion
+                 setStatusMessage("Turbo Engine: Optimizing Video..."); 
                  fileToUpload = await transcode(selectedFile);
-                 setStatusMessage(""); // CLEAR: Conversion done, switch back to percentage
-                 console.log(`Optimization: Reduced size from ${Math.round(selectedFile.size/1024/1024)}MB to ${Math.round(fileToUpload.size/1024/1024)}MB`);
+                 
+                 // CRITICAL: Clear message immediately after transcode so upload progress shows
+                 setStatusMessage(""); 
+                 console.log(`Optimized: ${Math.round(selectedFile.size/1024/1024)}MB -> ${Math.round(fileToUpload.size/1024/1024)}MB`);
             }
         }
 
         const formData = new FormData();
         formData.append("file", fileToUpload);
         formData.append("user_id", currentUser.uid);
-        
-        // Pass original filename so backend knows what to call it
         formData.append("original_filename", selectedFile.name); 
 
         const response = await axios({
@@ -189,7 +185,7 @@ const Dashboard = ({ user: currentUser }) => {
             onUploadProgress: (p) => {
                 const percent = Math.round((p.loaded * 100) / p.total);
                 setUploadProgress(percent);
-                // Only change message when 100% complete
+                // Only switch text when fully uploaded
                 if(percent === 100) setStatusMessage("AI Engine: Analyzing...");
             },
         });
@@ -200,8 +196,22 @@ const Dashboard = ({ user: currentUser }) => {
 
     } catch (err) {
         console.error(err);
-        let displayError = err.response?.data?.detail || err.message;
-        if (err.response?.status === 429) displayError = "Verbatim Engine Limit Reached. Please wait 60 seconds.";
+        let displayError = "Upload failed. Please try a smaller file.";
+        
+        if (err.response) {
+             if (err.response.status === 429) displayError = "Verbatim Engine Limit. Wait 60s.";
+             else if (err.response.data && err.response.data.detail) {
+                 // Smart Copyright Handling
+                 if (err.response.data.detail.includes("finish_reason")) {
+                     displayError = "System Alert: Copyrighted content detected (Movies/TV). Please upload original content.";
+                 } else {
+                     displayError = err.response.data.detail;
+                 }
+             }
+        } else if (err.message === "Network Error") {
+            displayError = "Network Timeout. Connection unstable. Try a smaller file or Audio-only.";
+        }
+        
         setError(displayError);
     } finally {
         setIsLoading(false);
@@ -253,11 +263,7 @@ const Dashboard = ({ user: currentUser }) => {
           
           <div className="flex items-center gap-4 cursor-pointer group" onClick={() => window.location.href = '/dashboard'}>
             <div className="relative flex items-center justify-center">
-              <img 
-                src={LOGO_PATH} 
-                alt="Verbatim Logo" 
-                className="h-12 w-auto md:h-16 rounded-lg border border-verbatim-orange bg-white p-1 object-contain" 
-              />
+              <img src={LOGO_PATH} alt="Verbatim Logo" className="h-12 w-auto md:h-16 rounded-lg border border-verbatim-orange bg-white p-1 object-contain" />
             </div>
             <div className="flex flex-col -space-y-1">
               <span className="text-xl md:text-2xl font-black tracking-tighter italic">VERBATIM</span>
@@ -277,7 +283,7 @@ const Dashboard = ({ user: currentUser }) => {
                 <History size={16} className="text-verbatim-orange"/> <span className="hidden sm:inline">History</span>
             </button>
             
-            {/* TURBO ENGINE BADGE - Only shows when READY (Green) */}
+            {/* TURBO ENGINE BADGE - Only shows when READY (Green). No annoying yellow loading state. */}
             {ffmpegLoaded && (
                 <div className="flex items-center gap-2 px-3 py-2 bg-white/5 rounded-lg border border-white/10 animate-in fade-in">
                     <div className="w-2 h-2 rounded-full animate-pulse bg-green-500"></div>
@@ -512,7 +518,7 @@ const Dashboard = ({ user: currentUser }) => {
         )}
       </main>
 
-      {/* REFINED FLOATING ACTION BUTTON */}
+      {/* REFINED FLOATING ACTION BUTTON - Z-40 to prevent overlap */}
       <Link 
         to="/blog" 
         state={{ 
