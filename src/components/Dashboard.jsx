@@ -18,7 +18,7 @@ const Dashboard = ({ user: currentUser }) => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [processingResults, setProcessingResults] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [statusMessage, setStatusMessage] = useState(""); // New: To show "Extracting Audio..."
+  const [statusMessage, setStatusMessage] = useState(""); 
   const [error, setError] = useState(null);
   const [studioError, setStudioError] = useState(null);
   
@@ -42,7 +42,7 @@ const Dashboard = ({ user: currentUser }) => {
 
   // 1. Initial Data Fetch & Load FFmpeg
   useEffect(() => {
-    loadFfmpeg(); // Start loading the engine immediately
+    loadFfmpeg(); 
     
     axios.get(`${CLOUD_API_BASE}/api/languages`)
       .then(res => {
@@ -59,10 +59,15 @@ const Dashboard = ({ user: currentUser }) => {
   }, [currentUser]);
 
   const loadFfmpeg = async () => {
+    // Safety Check: If browser doesn't support Turbo Engine (SharedArrayBuffer), don't try to load
+    if (!window.SharedArrayBuffer) {
+        console.warn("Turbo Engine not supported in this browser environment.");
+        return;
+    }
+
     const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
     const ffmpeg = ffmpegRef.current;
     
-    // Only load if not loaded
     if (!ffmpeg.loaded) {
         try {
             await ffmpeg.load({
@@ -128,8 +133,6 @@ const Dashboard = ({ user: currentUser }) => {
     const ffmpeg = ffmpegRef.current;
     if (!ffmpegLoaded) return file; // Fallback if engine failed
 
-    setStatusMessage("Turbo Engine: Extracting Audio...");
-    
     // Write the file to memory
     await ffmpeg.writeFile('input.mp4', await fetchFile(file));
 
@@ -153,23 +156,29 @@ const Dashboard = ({ user: currentUser }) => {
     setIsLoading(true);
     setUploadProgress(0);
     setError(null);
-    setStatusMessage("Securing Assets...");
-
+    setStatusMessage(""); // RESET: Clear message so "Securing Assets... X%" shows by default
+    
     try {
         let fileToUpload = selectedFile;
 
         // CHECK: Is it a video? If so, extract audio first.
         if (selectedFile.type.startsWith('video/')) {
-            console.log("Video detected. Engaging Turbo Engine...");
-            fileToUpload = await transcode(selectedFile);
-            console.log(`Optimization: Reduced size from ${Math.round(selectedFile.size/1024/1024)}MB to ${Math.round(fileToUpload.size/1024/1024)}MB`);
+            console.log("Video detected. Checking Turbo Engine...");
+            
+            // Only use Turbo if loaded
+            if (ffmpegLoaded) {
+                 setStatusMessage("Turbo Engine: Optimizing Video..."); // Show feedback during conversion
+                 fileToUpload = await transcode(selectedFile);
+                 setStatusMessage(""); // CLEAR: Conversion done, switch back to percentage
+                 console.log(`Optimization: Reduced size from ${Math.round(selectedFile.size/1024/1024)}MB to ${Math.round(fileToUpload.size/1024/1024)}MB`);
+            }
         }
 
         const formData = new FormData();
         formData.append("file", fileToUpload);
         formData.append("user_id", currentUser.uid);
         
-        // Pass original filename so backend knows what to call it (optional, but good for history)
+        // Pass original filename so backend knows what to call it
         formData.append("original_filename", selectedFile.name); 
 
         const response = await axios({
@@ -180,6 +189,7 @@ const Dashboard = ({ user: currentUser }) => {
             onUploadProgress: (p) => {
                 const percent = Math.round((p.loaded * 100) / p.total);
                 setUploadProgress(percent);
+                // Only change message when 100% complete
                 if(percent === 100) setStatusMessage("AI Engine: Analyzing...");
             },
         });
@@ -267,12 +277,15 @@ const Dashboard = ({ user: currentUser }) => {
                 <History size={16} className="text-verbatim-orange"/> <span className="hidden sm:inline">History</span>
             </button>
             
-            <div className="flex items-center gap-2 px-3 py-2 bg-white/5 rounded-lg border border-white/10">
-                <div className={`w-2 h-2 rounded-full animate-pulse ${ffmpegLoaded ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
-                <span className="text-[10px] md:text-xs font-bold text-gray-300 uppercase tracking-widest">
-                    {ffmpegLoaded ? "Turbo Engine Ready" : "Loading Engine..."}
-                </span>
-            </div>
+            {/* TURBO ENGINE BADGE - Only shows when READY (Green) */}
+            {ffmpegLoaded && (
+                <div className="flex items-center gap-2 px-3 py-2 bg-white/5 rounded-lg border border-white/10 animate-in fade-in">
+                    <div className="w-2 h-2 rounded-full animate-pulse bg-green-500"></div>
+                    <span className="text-[10px] md:text-xs font-bold text-gray-300 uppercase tracking-widest">
+                        Turbo Engine Ready
+                    </span>
+                </div>
+            )}
             
             <button onClick={handleLogout} className="p-2 text-gray-400 hover:text-red-400 transition-all hover:bg-white/5 rounded-lg">
                 <LogOut size={20} />
