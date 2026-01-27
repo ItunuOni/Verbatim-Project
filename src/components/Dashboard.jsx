@@ -435,13 +435,14 @@ const Dashboard = ({ user: currentUser }) => {
       </main>
 
       {/* REFINED FLOATING ACTION BUTTON */}
+      {/* REFINED FLOATING ACTION BUTTON */}
       <Link 
         to="/blog" 
         state={{ 
           blogContent: processingResults?.blog_post, 
           blogTitle: processingResults ? `Insights: ${processingResults.filename}` : "VBT Blog" 
         }}
-        className="fixed bottom-6 right-6 z-[100] group flex items-center gap-3 bg-verbatim-navy/95 backdrop-blur-xl border border-verbatim-orange/40 p-3 rounded-2xl shadow-2xl hover:border-verbatim-orange hover:bg-verbatim-orange transition-all duration-300 active:scale-95"
+        className="fixed bottom-6 right-6 z-40 group flex items-center gap-3 bg-verbatim-navy/95 backdrop-blur-xl border border-verbatim-orange/40 p-3 rounded-2xl shadow-2xl hover:border-verbatim-orange hover:bg-verbatim-orange transition-all duration-300 active:scale-95"
       >
         <div className="relative">
             <div className="absolute -inset-1 bg-verbatim-orange rounded-full blur-sm opacity-0 group-hover:opacity-60 transition-opacity"></div>
