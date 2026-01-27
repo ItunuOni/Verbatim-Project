@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "dependencies": {
+    "@ffmpeg/ffmpeg": "^0.12.15",
+    "@ffmpeg/util": "^0.12.2",
     "autoprefixer": "^10.4.16",
     "axios": "^1.6.2",
     "firebase": "^10.7.1",

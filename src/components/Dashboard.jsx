@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
+import { FFmpeg } from '@ffmpeg/ffmpeg';
+import { fetchFile, toBlobURL } from '@ffmpeg/util';
 import { 
   LogOut, Upload, FileAudio, CheckCircle, AlertCircle, Loader2, 
   FileText, AlignLeft, Mic, Globe, Play, Languages, User as UserIcon, Cpu, 
@@ -9,23 +11,23 @@ import { Link } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import { auth } from '../firebase';
 
-// --- CLOUD CONFIG (MASTER PRESERVED) ---
 const CLOUD_API_BASE = "https://verbatim-backend.onrender.com";
 
-// FIX 1: Renamed prop to 'currentUser' to stop the 'n is not defined' crash
 const Dashboard = ({ user: currentUser }) => {
   const [selectedFile, setSelectedFile] = useState(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [processingResults, setProcessingResults] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [statusMessage, setStatusMessage] = useState(""); // New: To show "Extracting Audio..."
   const [error, setError] = useState(null);
   const [studioError, setStudioError] = useState(null);
   
-  // --- HISTORY STATE ---
   const [history, setHistory] = useState([]);
   const [showHistory, setShowHistory] = useState(false);
   
   const fileInputRef = useRef(null);
+  const ffmpegRef = useRef(new FFmpeg());
+  const [ffmpegLoaded, setFfmpegLoaded] = useState(false);
 
   // --- STUDIO STATE ---
   const [voiceEmotion, setVoiceEmotion] = useState("Neutral");
@@ -38,12 +40,13 @@ const Dashboard = ({ user: currentUser }) => {
   const [generatedAudio, setGeneratedAudio] = useState(null);
   const [translatedText, setTranslatedText] = useState(null);
 
-  // 1. Initial Data Fetch (Languages + History)
+  // 1. Initial Data Fetch & Load FFmpeg
   useEffect(() => {
+    loadFfmpeg(); // Start loading the engine immediately
+    
     axios.get(`${CLOUD_API_BASE}/api/languages`)
       .then(res => {
         setAvailableLanguages(res.data);
-        // Default fetch
         axios.get(`${CLOUD_API_BASE}/api/voices?language=English (US)`)
              .then(v => {
                  setAvailableVoices(v.data);
@@ -54,6 +57,25 @@ const Dashboard = ({ user: currentUser }) => {
 
     if (currentUser?.uid) fetchHistory();
   }, [currentUser]);
+
+  const loadFfmpeg = async () => {
+    const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
+    const ffmpeg = ffmpegRef.current;
+    
+    // Only load if not loaded
+    if (!ffmpeg.loaded) {
+        try {
+            await ffmpeg.load({
+                coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
+                wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+            });
+            setFfmpegLoaded(true);
+            console.log("Turbo Engine (FFmpeg) Loaded");
+        } catch (err) {
+            console.error("Failed to load Turbo Engine:", err);
+        }
+    }
+  };
 
   const fetchHistory = async () => {
     try {
@@ -101,6 +123,29 @@ const Dashboard = ({ user: currentUser }) => {
     document.body.removeChild(element);
   };
 
+  // --- THE TURBO EXTRACTOR ---
+  const transcode = async (file) => {
+    const ffmpeg = ffmpegRef.current;
+    if (!ffmpegLoaded) return file; // Fallback if engine failed
+
+    setStatusMessage("Turbo Engine: Extracting Audio...");
+    
+    // Write the file to memory
+    await ffmpeg.writeFile('input.mp4', await fetchFile(file));
+
+    // Run FFmpeg command to extract audio (fast)
+    await ffmpeg.exec(['-i', 'input.mp4', '-q:a', '0', '-map', 'a', 'output.mp3']);
+
+    // Read the result
+    const data = await ffmpeg.readFile('output.mp3');
+    
+    // Create a new lightweight file
+    const audioBlob = new Blob([data.buffer], { type: 'audio/mp3' });
+    const audioFile = new File([audioBlob], "extracted_audio.mp3", { type: 'audio/mp3' });
+    
+    return audioFile;
+  };
+
   const handleUpload = async (e) => {
     if (e && e.preventDefault) e.preventDefault(); 
     if (!selectedFile || !currentUser) return;
@@ -108,29 +153,49 @@ const Dashboard = ({ user: currentUser }) => {
     setIsLoading(true);
     setUploadProgress(0);
     setError(null);
-
-    const formData = new FormData();
-    formData.append("file", selectedFile);
-    formData.append("user_id", currentUser.uid);
+    setStatusMessage("Securing Assets...");
 
     try {
-      const response = await axios({
-          method: 'post',
-          url: `${CLOUD_API_BASE}/api/process-media`,
-          data: formData,
-          headers: { "Content-Type": "multipart/form-data" },
-          onUploadProgress: (p) => setUploadProgress(Math.round((p.loaded * 100) / p.total)),
+        let fileToUpload = selectedFile;
+
+        // CHECK: Is it a video? If so, extract audio first.
+        if (selectedFile.type.startsWith('video/')) {
+            console.log("Video detected. Engaging Turbo Engine...");
+            fileToUpload = await transcode(selectedFile);
+            console.log(`Optimization: Reduced size from ${Math.round(selectedFile.size/1024/1024)}MB to ${Math.round(fileToUpload.size/1024/1024)}MB`);
         }
-      );
-      setProcessingResults(response.data);
-      setSelectedFile(null);
-      fetchHistory();
+
+        const formData = new FormData();
+        formData.append("file", fileToUpload);
+        formData.append("user_id", currentUser.uid);
+        
+        // Pass original filename so backend knows what to call it (optional, but good for history)
+        formData.append("original_filename", selectedFile.name); 
+
+        const response = await axios({
+            method: 'post',
+            url: `${CLOUD_API_BASE}/api/process-media`,
+            data: formData,
+            headers: { "Content-Type": "multipart/form-data" },
+            onUploadProgress: (p) => {
+                const percent = Math.round((p.loaded * 100) / p.total);
+                setUploadProgress(percent);
+                if(percent === 100) setStatusMessage("AI Engine: Analyzing...");
+            },
+        });
+
+        setProcessingResults(response.data);
+        setSelectedFile(null);
+        fetchHistory();
+
     } catch (err) {
-      let displayError = err.response?.data?.detail || err.message;
-      if (err.response?.status === 429) displayError = "Verbatim Engine Limit Reached. Please wait 60 seconds.";
-      setError(displayError);
+        console.error(err);
+        let displayError = err.response?.data?.detail || err.message;
+        if (err.response?.status === 429) displayError = "Verbatim Engine Limit Reached. Please wait 60 seconds.";
+        setError(displayError);
     } finally {
-      setIsLoading(false);
+        setIsLoading(false);
+        setStatusMessage("");
     }
   };
 
@@ -171,7 +236,6 @@ const Dashboard = ({ user: currentUser }) => {
   const LOGO_PATH = "/logo.png";
 
   return (
-    // FIX 2: Removed framer-motion animations. This removes the 'n is not defined' crash source.
     <div className="min-h-screen bg-verbatim-navy text-white font-sans selection:bg-verbatim-orange overflow-x-hidden">
       
       <nav className="fixed w-full top-0 left-0 z-50 border-b border-white/10 bg-verbatim-navy/95 backdrop-blur-xl transition-all shadow-lg">
@@ -192,7 +256,6 @@ const Dashboard = ({ user: currentUser }) => {
           </div>
 
           <div className="flex items-center gap-3 md:gap-4 flex-wrap justify-end">
-             {/* USER BADGE */}
              {currentUser && (
                 <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-white/5 rounded-full border border-white/10">
                     <UserIcon size={14} className="text-gray-400" />
@@ -205,8 +268,10 @@ const Dashboard = ({ user: currentUser }) => {
             </button>
             
             <div className="flex items-center gap-2 px-3 py-2 bg-white/5 rounded-lg border border-white/10">
-                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                <span className="text-[10px] md:text-xs font-bold text-gray-300 uppercase tracking-widest">Engine Online</span>
+                <div className={`w-2 h-2 rounded-full animate-pulse ${ffmpegLoaded ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
+                <span className="text-[10px] md:text-xs font-bold text-gray-300 uppercase tracking-widest">
+                    {ffmpegLoaded ? "Turbo Engine Ready" : "Loading Engine..."}
+                </span>
             </div>
             
             <button onClick={handleLogout} className="p-2 text-gray-400 hover:text-red-400 transition-all hover:bg-white/5 rounded-lg">
@@ -283,7 +348,7 @@ const Dashboard = ({ user: currentUser }) => {
               </div>
               <div className="flex justify-between items-center mt-4">
                 <p className="text-xs md:text-sm font-black text-verbatim-orange uppercase tracking-[0.2em] animate-pulse">
-                  {uploadProgress < 100 ? `Securing Assets... ${uploadProgress}%` : "AI Engine: Generating Insights..."}
+                  {statusMessage || (uploadProgress < 100 ? `Securing Assets... ${uploadProgress}%` : "AI Engine: Generating Insights...")}
                 </p>
                 <Loader2 className="animate-spin text-verbatim-orange" size={16} />
               </div>
@@ -434,7 +499,6 @@ const Dashboard = ({ user: currentUser }) => {
         )}
       </main>
 
-      {/* REFINED FLOATING ACTION BUTTON */}
       {/* REFINED FLOATING ACTION BUTTON */}
       <Link 
         to="/blog" 
