@@ -75,7 +75,7 @@ const LandingPage = () => {
             </h1>
 
             <p className="text-xl md:text-2xl text-verbatim-light mb-12 max-w-3xl mx-auto leading-relaxed font-light">
-              The world's most powerful localization engine—now running in the cloud. Turn raw media into polished, multi-format assets that break every language barrier.
+              The world's most powerful localization engine now running in the cloud. Turn raw media into polished, multi-format assets that break every language barrier.
             </p>
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-6">
