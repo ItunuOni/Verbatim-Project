@@ -1,15 +1,16 @@
 import os
 import shutil
 import uuid
-import re  # IMPORT REGEX FOR CLEANING
-import json # IMPORT JSON FOR CLOUD AUTH
-import time # IMPORT TIME FOR RETRY DELAY
-import gc   # [FIX 1] GARBAGE COLLECTOR FOR MEMORY MANAGEMENT
+import re 
+import json 
+import time 
+import gc   
+import subprocess # NEW: FOR TURBO SPEED
 from pathlib import Path
 from typing import Annotated
 import datetime
 
-# --- LEGACY STABLE IMPORTS ---
+# --- IMPORTS ---
 from dotenv import load_dotenv
 import google.generativeai as genai
 import firebase_admin
@@ -17,7 +18,7 @@ from firebase_admin import credentials, firestore
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from moviepy.editor import VideoFileClip
+# REMOVED: moviepy (It was the cause of the slowness)
 import edge_tts
 
 # --- 1. SETUP & CONFIG ---
@@ -69,10 +70,7 @@ def clean_text_for_tts(text):
     return text
 
 def retry_gemini_call(model_instance, prompt_input, retries=3, delay=5):
-    """
-    Wraps the AI call in a loop. If it hits a 429 (Quota) error, 
-    it waits and tries again instead of crashing the app.
-    """
+    """Wraps the AI call in a loop for reliability."""
     for attempt in range(retries):
         try:
             return model_instance.generate_content(prompt_input)
@@ -80,17 +78,16 @@ def retry_gemini_call(model_instance, prompt_input, retries=3, delay=5):
             error_str = str(e)
             if "429" in error_str:
                 if attempt < retries - 1:
-                    print(f"⚠️ Quota Hit (429). Retrying in {delay}s... (Attempt {attempt+1}/{retries})")
+                    print(f"⚠️ Quota Hit (429). Retrying in {delay}s...")
                     time.sleep(delay)
-                    delay *= 2 # Exponential backoff (wait 5s, then 10s...)
+                    delay *= 2 
                     continue
                 else:
-                    print("❌ Max retries reached for Gemini API.")
                     raise e
             else:
-                raise e # Raise other errors immediately
+                raise e 
 
-# --- 2. GLOBAL VOICE DATABASE (50+ Languages) ---
+# --- 2. GLOBAL VOICE DATABASE ---
 VOICE_DB = {
     "English (US)": [{"id": "en-US-GuyNeural", "name": "Guy (Male)"}, {"id": "en-US-JennyNeural", "name": "Jenny (Female)"}, {"id": "en-US-AriaNeural", "name": "Aria (Female)"}, {"id": "en-US-ChristopherNeural", "name": "Christopher (Male)"}, {"id": "en-US-EricNeural", "name": "Eric (Male)"}],
     "English (Nigeria)": [{"id": "en-NG-AbeoNeural", "name": "Abeo (Male)"}, {"id": "en-NG-EzinneNeural", "name": "Ezinne (Female)"}],
@@ -171,20 +168,13 @@ async def generate_audio(
     voice_id: Annotated[str, Form()]
 ):
     try:
-        # 1. Translate with Retry Logic
         translation_prompt = f"Translate the following text into {language}. Return ONLY the translation, no extra text:\n\n{text}"
         
-        # USE NEW RETRY WRAPPER
         translation_response = retry_gemini_call(model, translation_prompt)
         translated_text = translation_response.text.strip()
-        
-        # --- CLEAN TEXT FOR TTS ---
         tts_ready_text = clean_text_for_tts(translated_text)
-        
-        # 2. Emotion Settings
         settings = EMOTION_SETTINGS.get(emotion, EMOTION_SETTINGS["Neutral"])
         
-        # 3. Generate Audio
         output_filename = f"dub_{uuid.uuid4()}.mp3"
         output_path = TEMP_DIR / output_filename
         
@@ -196,7 +186,6 @@ async def generate_audio(
         )
         await communicate.save(str(output_path))
         
-        # [FIX 1] MEMORY CLEANUP
         gc.collect()
         
         return {
@@ -224,30 +213,47 @@ async def process_media(file: UploadFile, user_id: Annotated[str, Form()]):
             shutil.copyfileobj(file.file, buffer)
 
         path_to_upload = temp_filepath
-        # Set a default mime type for audio
         upload_mime_type = "audio/mp3" 
 
+        # --- TURBO VIDEO PROCESSING (FFMPEG) ---
         if file_extension in ['.mp4', '.mov', '.avi', '.mkv', '.webm']:
             audio_path = TEMP_DIR / f"{temp_filepath.stem}.mp3"
-            video_clip = VideoFileClip(str(temp_filepath))
-            video_clip.audio.write_audiofile(str(audio_path), logger=None)
-            video_clip.close()
             
-            # [FIX 1] AGGRESSIVE MEMORY CLEANUP FOR VIDEO
-            del video_clip
-            gc.collect()
+            print(f"🚀 Starting Turbo Extraction for {file.filename}...")
+            # Use FFmpeg subprocess instead of MoviePy (MUCH FASTER, LESS RAM)
+            command = [
+                "ffmpeg", "-i", str(temp_filepath), 
+                "-vn", "-acodec", "libmp3lame", "-q:a", "4", 
+                "-y", str(audio_path)
+            ]
+            
+            # Run FFmpeg - this is usually installed on Render by default
+            result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            
+            if result.returncode != 0:
+                print(f"⚠️ FFmpeg failed, falling back to raw upload. Error: {result.stderr}")
+                # Fallback: Just try uploading the video directly if extraction fails
+                path_to_upload = temp_filepath
+                upload_mime_type = "video/mp4" # Generic fallback
+            else:
+                print("✅ Turbo Extraction Complete.")
+                path_to_upload = audio_path
+                files_to_cleanup.append(audio_path)
+                upload_mime_type = "audio/mp3"
 
-            path_to_upload = audio_path
-            files_to_cleanup.append(audio_path)
-            # We converted it to MP3, so mime_type is definitely mp3
-            upload_mime_type = "audio/mp3"
         elif file_extension == ".wav":
             upload_mime_type = "audio/wav"
         
-        # [FIX 2] TABLET FIX: EXPLICITLY SET MIME_TYPE
-        # This tells Google "Hey, this is an MP3" even if the Tablet upload header was weird.
+        # Explicit Mime Type Fix
         media_file = genai.upload_file(path=str(path_to_upload), mime_type=upload_mime_type)
         
+        # [FIX 3] PROCESSING WAIT LOOP
+        # Ensures we don't ask Gemini for the text while it is still "watching" the video
+        while media_file.state.name == "PROCESSING":
+            print("⏳ Waiting for Gemini processing...")
+            time.sleep(2)
+            media_file = genai.get_file(media_file.name)
+            
         # USE NEW RETRY WRAPPER FOR MAIN ANALYSIS
         response = retry_gemini_call(model, [
             media_file,
@@ -272,8 +278,8 @@ async def process_media(file: UploadFile, user_id: Annotated[str, Form()]):
 
     except Exception as e:
         error_str = str(e)
+        print(f"❌ Processing Error: {error_str}")
         if "429" in error_str:
-             # Even with retry, if it fails, we return a cleaner error message
              raise HTTPException(status_code=429, detail="Engine Busy. Retrying... please wait a moment.")
         raise HTTPException(status_code=500, detail=str(e))
     finally:
@@ -283,5 +289,4 @@ async def process_media(file: UploadFile, user_id: Annotated[str, Form()]):
                     os.remove(path)
                 except:
                     pass
-        # [FIX 1] FINAL CLEANUP SWEEP
         gc.collect()
