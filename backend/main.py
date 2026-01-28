@@ -160,24 +160,17 @@ def get_history(user_id: str):
         print(f"❌ History Fetch Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-# --- NEW: DELETE ENDPOINT ---
-@app.delete("/api/history/{doc_id}")
-def delete_history_item(doc_id: str):
+# --- NEW: DIRECT DELETE ENDPOINT ---
+# This is the fix. It deletes from the exact path: users/{user_id}/transcriptions/{doc_id}
+@app.delete("/api/history/{user_id}/{doc_id}")
+def delete_history_item(user_id: str, doc_id: str):
     try:
-        # We use a Collection Group query to find the document by ID 
-        # because the frontend does not send the user_id in the delete request.
-        docs = db.collection_group('transcriptions') \
-                 .where(firestore.FieldPath.document_id(), '==', doc_id) \
-                 .stream()
-        
-        deleted = False
-        for doc in docs:
-            doc.reference.delete()
-            deleted = True
-        
-        if not deleted:
-            raise HTTPException(status_code=404, detail="Item not found")
-            
+        doc_ref = db.collection('users').document(user_id).collection('transcriptions').document(doc_id)
+        # Check existence first (optional, but good for debugging)
+        if not doc_ref.get().exists:
+             raise HTTPException(status_code=404, detail="Item not found")
+             
+        doc_ref.delete()
         return {"status": "deleted", "id": doc_id}
     except Exception as e:
         print(f"❌ Delete Error: {e}")

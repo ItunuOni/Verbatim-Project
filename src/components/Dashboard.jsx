@@ -187,23 +187,25 @@ const Dashboard = ({ user: currentUser }) => {
       window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // --- DELETE LOGIC ---
+  // --- REVISED DELETE LOGIC (DIRECT TARGET) ---
   const confirmDelete = (e, item) => {
-    e.stopPropagation(); // Stop click from opening the item
+    e.stopPropagation(); 
     setItemToDelete(item);
   };
 
   const executeDelete = async () => {
-    if (!itemToDelete) return;
+    if (!itemToDelete || !currentUser) return;
     setIsDeleting(true);
     try {
-      await axios.delete(`${CLOUD_API_BASE}/api/history/${itemToDelete.id}`);
-      // Remove locally to feel instant
+      // FIX: SEND USER ID AND DOC ID TO ENSURE DIRECT DELETION
+      await axios.delete(`${CLOUD_API_BASE}/api/history/${currentUser.uid}/${itemToDelete.id}`);
+      
       setHistory(prev => prev.filter(i => i.id !== itemToDelete.id));
-      setItemToDelete(null); // Close modal
+      setItemToDelete(null); 
     } catch (err) {
       console.error("Delete failed:", err);
-      alert("Failed to delete item.");
+      // More detailed error alert
+      alert(`Failed to delete: ${err.response?.statusText || "Server Error"}`);
     } finally {
       setIsDeleting(false);
     }
