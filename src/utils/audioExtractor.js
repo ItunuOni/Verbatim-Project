@@ -4,50 +4,51 @@ import { fetchFile } from '@ffmpeg/util';
 const ffmpeg = new FFmpeg();
 
 /**
- * Extracts audio from a video file completely client-side.
- * @param {File} videoFile - The video file selected by the user.
- * @param {function} onProgress - Callback to update the UI progress bar.
- * @returns {Promise<File>} - The extracted MP3 file.
+ * Extracts audio using "Stream Copy" for maximum speed.
+ * Falls back to fast encoding if copy fails.
  */
 export const extractAudio = async (videoFile, onProgress) => {
     try {
-        // 1. Load the FFmpeg engine if not already loaded
         if (!ffmpeg.loaded) {
             await ffmpeg.load();
         }
 
         const inputName = 'input.mp4';
-        const outputName = 'output.mp3';
+        // We switch to .m4a (AAC) which is the native audio format for most MP4s
+        const outputName = 'output.m4a';
 
-        // 2. Write the video file to FFmpeg's virtual memory
+        // Write file to memory
         await ffmpeg.writeFile(inputName, await fetchFile(videoFile));
 
-        // 3. Track progress (Log percentage)
+        // Track progress
         ffmpeg.on('progress', ({ progress }) => {
-            if (onProgress) {
-                // FFmpeg progress is 0 to 1. Convert to 0-100.
-                onProgress(Math.round(progress * 100));
-            }
+            if (onProgress) onProgress(Math.round(progress * 100));
         });
 
-        // 4. Run the extraction command
-        // -i: Input file
-        // -vn: Video No (Drop the video track)
-        // -acodec libmp3lame: Use MP3 codec
-        // -q:a 2: High Quality Audio (Variable Bitrate)
-        await ffmpeg.exec(['-i', inputName, '-vn', '-acodec', 'libmp3lame', '-q:a', '2', outputName]);
+        // --- THE SPEED FIX ---
+        // OLD: ['-i', inputName, '-vn', '-acodec', 'libmp3lame', '-q:a', '2', outputName] (Slow)
+        // NEW: ['-i', inputName, '-vn', '-c:a', 'copy', outputName] (Instant)
+        // This copies the audio stream directly without re-encoding.
+        try {
+            console.log("🚀 Attempting High-Speed Stream Copy...");
+            await ffmpeg.exec(['-i', inputName, '-vn', '-c:a', 'copy', outputName]);
+        } catch (copyError) {
+            console.warn("Stream copy failed (likely incompatible codec). Falling back to fast encoding.", copyError);
+            // Fallback: Fast AAC encoding if copy fails
+            await ffmpeg.exec(['-i', inputName, '-vn', '-acodec', 'aac', '-b:a', '128k', outputName]);
+        }
 
-        // 5. Read the result from memory
+        // Read the result
         const data = await ffmpeg.readFile(outputName);
 
-        // 6. Create a proper File object to send to the backend
-        const audioBlob = new Blob([data.buffer], { type: 'audio/mp3' });
-        const audioFile = new File([audioBlob], "extracted_audio.mp3", { type: "audio/mp3" });
+        // Create the file object (M4A/AAC)
+        const audioBlob = new Blob([data.buffer], { type: 'audio/mp4' });
+        const audioFile = new File([audioBlob], "extracted_audio.m4a", { type: "audio/mp4" });
 
         return audioFile;
 
     } catch (error) {
-        console.error("FFmpeg Client-Side Error:", error);
-        throw new Error("Browser extraction failed. System will attempt server-side fallback.");
+        console.error("FFmpeg Error:", error);
+        throw new Error("Extraction failed.");
     }
 };

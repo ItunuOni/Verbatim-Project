@@ -15,10 +15,13 @@ const CLOUD_API_BASE = "https://verbatim-backend.onrender.com";
 
 const Dashboard = ({ user: currentUser }) => {
   const [selectedFile, setSelectedFile] = useState(null);
+  
+  // --- PROGRESS STATES ---
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [extractionProgress, setExtractionProgress] = useState(0); // NEW: Track extraction % visually
+  
   const [processingResults, setProcessingResults] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
-  // --- NEW STATE: TRACK EXTRACTION STATUS ---
   const [extractionStatus, setExtractionStatus] = useState(""); 
   const [error, setError] = useState(null);
   const [studioError, setStudioError] = useState(null);
@@ -91,8 +94,9 @@ const Dashboard = ({ user: currentUser }) => {
     if (file) {
       setSelectedFile(file);
       setUploadProgress(0);
+      setExtractionProgress(0); // Reset visual extraction bar
       setError(null);
-      setExtractionStatus(""); // Reset status on new file
+      setExtractionStatus(""); 
     }
   };
 
@@ -112,8 +116,9 @@ const Dashboard = ({ user: currentUser }) => {
     
     setIsLoading(true);
     setUploadProgress(0);
+    setExtractionProgress(0);
     setError(null);
-    setExtractionStatus(""); // Reset status
+    setExtractionStatus(""); 
     
     // Default: upload the selected file
     let fileToUpload = selectedFile;
@@ -127,6 +132,7 @@ const Dashboard = ({ user: currentUser }) => {
             try {
                 // Use our new utility
                 const audioFile = await extractAudio(selectedFile, (progress) => {
+                    setExtractionProgress(progress); // Update the visual bar!
                     setExtractionStatus(`Extracting Audio... ${progress}%`);
                 });
                 
@@ -413,11 +419,12 @@ const Dashboard = ({ user: currentUser }) => {
             {isLoading && (
               <div className="mt-10 max-w-md mx-auto">
                 <div className="w-full bg-white/5 rounded-full h-4 overflow-hidden border border-white/10 p-1">
-                  <div style={{width: `${uploadProgress}%`}} className="bg-gradient-to-r from-verbatim-orange to-pink-500 h-full rounded-full transition-all duration-300" />
+                  {/* DYNAMIC WIDTH: Swaps between Extraction % and Upload % */}
+                  <div style={{width: `${extractionStatus ? extractionProgress : uploadProgress}%`}} className="bg-gradient-to-r from-verbatim-orange to-pink-500 h-full rounded-full transition-all duration-300" />
                 </div>
                 <div className="flex justify-between items-center mt-4">
                   <p className="text-xs md:text-sm font-black text-verbatim-orange uppercase tracking-[0.2em] animate-pulse">
-                    {/* DYNAMIC STATUS TEXT: Shows Extraction Status OR Upload Progress */}
+                    {/* DYNAMIC TEXT: Shows Status Message */}
                     {extractionStatus || (uploadProgress < 100 ? `Securing Assets... ${uploadProgress}%` : "AI Engine: Generating Insights...")}
                   </p>
                   <Loader2 className="animate-spin text-verbatim-orange" size={16} />
