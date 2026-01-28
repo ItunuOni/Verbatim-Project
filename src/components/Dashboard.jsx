@@ -3,7 +3,7 @@ import axios from 'axios';
 import { 
   LogOut, Upload, FileAudio, CheckCircle, AlertCircle, Loader2, 
   FileText, AlignLeft, Mic, Globe, Play, Languages, User as UserIcon, Cpu, 
-  XCircle, History, Download, ChevronRight, X 
+  XCircle, History, Download, ChevronRight, X, Trash2, AlertTriangle
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
@@ -21,6 +21,10 @@ const Dashboard = ({ user: currentUser }) => {
   
   const [history, setHistory] = useState([]);
   const [showHistory, setShowHistory] = useState(false);
+  
+  // --- DELETE CONFIRMATION STATE ---
+  const [itemToDelete, setItemToDelete] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   
   const fileInputRef = useRef(null);
 
@@ -183,11 +187,67 @@ const Dashboard = ({ user: currentUser }) => {
       window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  // --- DELETE LOGIC ---
+  const confirmDelete = (e, item) => {
+    e.stopPropagation(); // Stop click from opening the item
+    setItemToDelete(item);
+  };
+
+  const executeDelete = async () => {
+    if (!itemToDelete) return;
+    setIsDeleting(true);
+    try {
+      await axios.delete(`${CLOUD_API_BASE}/api/history/${itemToDelete.id}`);
+      // Remove locally to feel instant
+      setHistory(prev => prev.filter(i => i.id !== itemToDelete.id));
+      setItemToDelete(null); // Close modal
+    } catch (err) {
+      console.error("Delete failed:", err);
+      alert("Failed to delete item.");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const LOGO_PATH = "/logo.png";
 
   return (
-    <div className="min-h-screen bg-verbatim-navy text-white font-sans selection:bg-verbatim-orange overflow-x-hidden">
+    <div className="min-h-screen bg-verbatim-navy text-white font-sans selection:bg-verbatim-orange overflow-x-hidden relative">
       
+      {/* --- DELETE CONFIRMATION MODAL --- */}
+      {itemToDelete && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setItemToDelete(null)}></div>
+          <div className="relative bg-verbatim-navy border border-red-500/30 p-6 rounded-2xl shadow-2xl max-w-sm w-full animate-in fade-in zoom-in duration-200">
+             <div className="flex items-center gap-3 mb-4">
+                <div className="p-3 bg-red-500/20 rounded-full text-red-500">
+                    <AlertTriangle size={24} />
+                </div>
+                <h3 className="text-xl font-bold text-white">Delete Project?</h3>
+             </div>
+             <p className="text-gray-400 mb-6 text-sm">
+                Are you sure you want to delete <span className="text-white font-bold">"{itemToDelete.filename}"</span>? This action cannot be undone.
+             </p>
+             <div className="flex gap-3">
+                <button 
+                  onClick={() => setItemToDelete(null)}
+                  className="flex-1 py-3 bg-white/5 hover:bg-white/10 rounded-xl text-sm font-bold transition-colors"
+                >
+                    Cancel
+                </button>
+                <button 
+                  onClick={executeDelete}
+                  disabled={isDeleting}
+                  className="flex-1 py-3 bg-red-600 hover:bg-red-700 rounded-xl text-sm font-bold transition-colors flex items-center justify-center gap-2"
+                >
+                    {isDeleting ? <Loader2 className="animate-spin" size={16}/> : <Trash2 size={16} />}
+                    {isDeleting ? "Deleting..." : "Yes, Delete"}
+                </button>
+             </div>
+          </div>
+        </div>
+      )}
+
       <nav className="fixed w-full top-0 left-0 z-50 border-b border-white/10 bg-verbatim-navy/95 backdrop-blur-xl transition-all shadow-lg">
         <div className="max-w-7xl mx-auto px-4 py-3 md:py-4 flex flex-wrap justify-between items-center gap-4">
           
@@ -241,12 +301,21 @@ const Dashboard = ({ user: currentUser }) => {
                             <p className="text-gray-500 text-center italic">No history found.</p>
                         ) : (
                             history.map((item) => (
-                                <div key={item.id} onClick={() => loadFromHistory(item)} className="p-4 bg-white/5 hover:bg-white/10 border border-white/5 rounded-xl cursor-pointer group transition-all">
+                                <div key={item.id} onClick={() => loadFromHistory(item)} className="relative p-4 bg-white/5 hover:bg-white/10 border border-white/5 rounded-xl cursor-pointer group transition-all pr-12">
                                     <div className="flex items-center justify-between mb-2">
                                         <span className="text-sm font-bold text-white group-hover:text-verbatim-orange truncate max-w-[200px]">{item.filename}</span>
                                         <ChevronRight size={16} className="text-gray-500 group-hover:translate-x-1 transition-transform"/>
                                     </div>
                                     <p className="text-xs text-gray-500">{new Date(item.upload_time).toLocaleDateString()} • {new Date(item.upload_time).toLocaleTimeString()}</p>
+                                    
+                                    {/* DELETE BUTTON */}
+                                    <button 
+                                        onClick={(e) => confirmDelete(e, item)}
+                                        className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-white/5 hover:bg-red-500/20 text-gray-500 hover:text-red-500 rounded-lg transition-all z-10"
+                                        title="Delete Project"
+                                    >
+                                        <Trash2 size={16} />
+                                    </button>
                                 </div>
                             ))
                         )}
