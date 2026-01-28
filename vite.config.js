@@ -12,5 +12,14 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 5173,
+    // --- REQUIRED FOR FFMPEG.WASM (Multi-threading) ---
+    headers: {
+      "Cross-Origin-Opener-Policy": "same-origin",
+      "Cross-Origin-Embedder-Policy": "require-corp",
+    },
+  },
+  // --- PREVENT VITE FROM BREAKING WASM FILES ---
+  optimizeDeps: {
+    exclude: ['@ffmpeg/ffmpeg', '@ffmpeg/util'],
   },
 })

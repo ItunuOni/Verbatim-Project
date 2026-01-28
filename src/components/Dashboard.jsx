@@ -8,6 +8,8 @@ import {
 import { Link } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import { auth } from '../firebase';
+// --- NEW IMPORT: CLIENT-SIDE AUDIO EXTRACTOR ---
+import { extractAudio } from '../utils/audioExtractor';
 
 const CLOUD_API_BASE = "https://verbatim-backend.onrender.com";
 
@@ -16,6 +18,8 @@ const Dashboard = ({ user: currentUser }) => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [processingResults, setProcessingResults] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  // --- NEW STATE: TRACK EXTRACTION STATUS ---
+  const [extractionStatus, setExtractionStatus] = useState(""); 
   const [error, setError] = useState(null);
   const [studioError, setStudioError] = useState(null);
   
@@ -88,6 +92,7 @@ const Dashboard = ({ user: currentUser }) => {
       setSelectedFile(file);
       setUploadProgress(0);
       setError(null);
+      setExtractionStatus(""); // Reset status on new file
     }
   };
 
@@ -108,11 +113,40 @@ const Dashboard = ({ user: currentUser }) => {
     setIsLoading(true);
     setUploadProgress(0);
     setError(null);
+    setExtractionStatus(""); // Reset status
     
+    // Default: upload the selected file
+    let fileToUpload = selectedFile;
+
     try {
+        // --- STEP 1: CLIENT-SIDE AUDIO EXTRACTION ---
+        // If it's a video file, we extract audio LOCALLY before uploading
+        if (selectedFile.type.startsWith('video/')) {
+            setExtractionStatus("Initializing Audio Extractor...");
+            
+            try {
+                // Use our new utility
+                const audioFile = await extractAudio(selectedFile, (progress) => {
+                    setExtractionStatus(`Extracting Audio... ${progress}%`);
+                });
+                
+                // Swap the massive video for the tiny audio file!
+                fileToUpload = audioFile; 
+                setExtractionStatus("Extraction Complete. Uploading Audio...");
+
+            } catch (extractErr) {
+                console.error("Extraction Failed, falling back to raw upload:", extractErr);
+                setExtractionStatus("Extraction failed. Trying raw video upload...");
+                // Fallback: Upload the original video if extraction fails
+                fileToUpload = selectedFile;
+            }
+        }
+
+        // --- STEP 2: UPLOAD TO BACKEND ---
         const formData = new FormData();
-        formData.append("file", selectedFile);
+        formData.append("file", fileToUpload);
         formData.append("user_id", currentUser.uid);
+        // Important: Keep original name so we know what file it was
         formData.append("original_filename", selectedFile.name); 
 
         const response = await axios({
@@ -123,15 +157,23 @@ const Dashboard = ({ user: currentUser }) => {
             onUploadProgress: (p) => {
                 const percent = Math.round((p.loaded * 100) / p.total);
                 setUploadProgress(percent);
+                // Update status text based on progress
+                if(percent < 100) {
+                    setExtractionStatus("Uploading to Cloud Engine...");
+                } else {
+                    setExtractionStatus("AI Engine: Generating Insights...");
+                }
             },
         });
 
         setProcessingResults(response.data);
         setSelectedFile(null);
+        setExtractionStatus("");
         fetchHistory();
 
     } catch (err) {
         console.error(err);
+        setExtractionStatus(""); // Clear status on error
         let displayError = "Upload failed. Please try a smaller file or Audio-only.";
         
         if (err.response) {
@@ -375,7 +417,8 @@ const Dashboard = ({ user: currentUser }) => {
                 </div>
                 <div className="flex justify-between items-center mt-4">
                   <p className="text-xs md:text-sm font-black text-verbatim-orange uppercase tracking-[0.2em] animate-pulse">
-                    {uploadProgress < 100 ? `Securing Assets... ${uploadProgress}%` : "AI Engine: Generating Insights..."}
+                    {/* DYNAMIC STATUS TEXT: Shows Extraction Status OR Upload Progress */}
+                    {extractionStatus || (uploadProgress < 100 ? `Securing Assets... ${uploadProgress}%` : "AI Engine: Generating Insights...")}
                   </p>
                   <Loader2 className="animate-spin text-verbatim-orange" size={16} />
                 </div>
