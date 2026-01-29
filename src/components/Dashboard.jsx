@@ -418,13 +418,14 @@ const Dashboard = ({ user: currentUser }) => {
 
             {isLoading && (
               <div className="mt-10 max-w-md mx-auto">
+                {/* DYNAMIC PROGRESS BAR: Uses 'currentProgress' which switches between Extract and Upload */}
                 <div className="w-full bg-white/5 rounded-full h-4 overflow-hidden border border-white/10 p-1">
-                  {/* DYNAMIC WIDTH: Swaps between Extraction % and Upload % */}
+                  {/* --- FIX: Force bar to show Extraction Progress when extracting --- */}
                   <div style={{width: `${extractionStatus ? extractionProgress : uploadProgress}%`}} className="bg-gradient-to-r from-verbatim-orange to-pink-500 h-full rounded-full transition-all duration-300" />
                 </div>
                 <div className="flex justify-between items-center mt-4">
                   <p className="text-xs md:text-sm font-black text-verbatim-orange uppercase tracking-[0.2em] animate-pulse">
-                    {/* DYNAMIC TEXT: Shows Status Message */}
+                    {/* STATUS TEXT */}
                     {extractionStatus || (uploadProgress < 100 ? `Securing Assets... ${uploadProgress}%` : "AI Engine: Generating Insights...")}
                   </p>
                   <Loader2 className="animate-spin text-verbatim-orange" size={16} />
