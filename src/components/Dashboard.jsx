@@ -131,14 +131,13 @@ const Dashboard = ({ user: currentUser }) => {
             try {
                 // Use our new utility
                 const audioFile = await extractAudio(selectedFile, (progress) => {
-                    setExtractionProgress(progress);
+                    setExtractionProgress(progress); // Update the visual bar!
                     setExtractionStatus(`Extracting Audio... ${progress}%`);
                 });
                 
                 // Swap the massive video for the tiny audio file!
                 fileToUpload = audioFile; 
-                setExtractionStatus("Extraction Complete. Uploading Audio...");
-
+                
             } catch (extractErr) {
                 console.error("Extraction Failed, falling back to raw upload:", extractErr);
                 setExtractionStatus("Extraction failed. Trying raw video upload...");
@@ -148,10 +147,12 @@ const Dashboard = ({ user: currentUser }) => {
         }
 
         // --- STEP 2: UPLOAD TO BACKEND ---
+        // CRITICAL FIX: Clear extraction status so the bar switches to Upload Mode (Blue)
+        setExtractionStatus(null); 
+
         const formData = new FormData();
         formData.append("file", fileToUpload);
         formData.append("user_id", currentUser.uid);
-        // Important: Keep original name so we know what file it was
         formData.append("original_filename", selectedFile.name); 
 
         const response = await axios({
@@ -162,12 +163,7 @@ const Dashboard = ({ user: currentUser }) => {
             onUploadProgress: (p) => {
                 const percent = Math.round((p.loaded * 100) / p.total);
                 setUploadProgress(percent);
-                // Update status text based on progress
-                if(percent < 100) {
-                    setExtractionStatus("Uploading to Cloud Engine...");
-                } else {
-                    setExtractionStatus("AI Engine: Generating Insights...");
-                }
+                // We rely on the default "Securing Assets..." text for uploading now
             },
         });
 
