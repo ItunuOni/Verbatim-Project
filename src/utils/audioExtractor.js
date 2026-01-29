@@ -4,8 +4,8 @@ import { fetchFile } from '@ffmpeg/util';
 const ffmpeg = new FFmpeg();
 
 /**
- * Extracts audio using "Direct Stream Copy" for maximum speed.
- * This is the "5-second" method required for mobile/tablet devices.
+ * Extracts audio using "Direct Stream Copy" to .m4a container.
+ * This is the ONLY way to get "Instant" speed on mobile devices without corruption.
  */
 export const extractAudio = async (videoFile, onProgress) => {
     try {
@@ -14,7 +14,7 @@ export const extractAudio = async (videoFile, onProgress) => {
         }
 
         const inputName = 'input.mp4';
-        const outputName = 'output.mp3'; // We'll try to copy to MP3 container
+        const outputName = 'output.m4a'; // CHANGED: .m4a is safer for Stream Copy (AAC)
 
         // Write file to memory
         await ffmpeg.writeFile(inputName, await fetchFile(videoFile));
@@ -25,26 +25,37 @@ export const extractAudio = async (videoFile, onProgress) => {
         });
 
         // --- DYNAMIC FILENAME LOGIC ---
+        // Get original name (e.g., "Movie.mkv") -> "Movie.m4a"
         const originalName = videoFile.name.substring(0, videoFile.name.lastIndexOf('.')) || videoFile.name;
-        const finalFileName = `${originalName}.mp3`;
+        const finalFileName = `${originalName}.m4a`;
 
-        // --- STRATEGY: TRY STREAM COPY FIRST (INSTANT) ---
-        // This copies the audio stream directly without re-encoding (CPU-light).
+        console.log("🚀 Starting Instant Stream Copy...");
+
+        // --- STRATEGY: INSTANT COPY (SAFE MODE) ---
+        // We output to .m4a which natively supports the AAC audio found in 99% of mp4/mkv/mov files.
+        // This avoids the CPU-heavy conversion that freezes mobile devices.
         try {
-            console.log("🚀 Attempting High-Speed Stream Copy...");
             await ffmpeg.exec(['-i', inputName, '-vn', '-c:a', 'copy', outputName]);
         } catch (copyError) {
-            console.warn("Stream copy failed. Falling back to fast encode.", copyError);
-            // Fallback: Very fast MP3 encoding (low complexity)
-            await ffmpeg.exec(['-i', inputName, '-vn', '-ac', '1', '-ar', '16000', '-b:a', '64k', outputName]);
+            console.warn("Stream copy failed. Falling back to Fast AAC Encode.", copyError);
+            // Fallback: Fast AAC encoding (supported by all browsers/backends)
+            await ffmpeg.exec([
+                '-i', inputName, 
+                '-vn', 
+                '-ac', '1', 
+                '-ar', '16000', 
+                '-c:a', 'aac', 
+                '-b:a', '64k', 
+                outputName
+            ]);
         }
 
         // Read the result
         const data = await ffmpeg.readFile(outputName);
 
         // Create the file object
-        const audioBlob = new Blob([data.buffer], { type: 'audio/mp3' });
-        const audioFile = new File([audioBlob], finalFileName, { type: "audio/mp3" });
+        const audioBlob = new Blob([data.buffer], { type: 'audio/m4a' });
+        const audioFile = new File([audioBlob], finalFileName, { type: "audio/m4a" });
 
         return audioFile;
 

@@ -94,7 +94,7 @@ const Dashboard = ({ user: currentUser }) => {
     if (file) {
       setSelectedFile(file);
       setUploadProgress(0);
-      setExtractionProgress(0); // Reset visual extraction bar
+      setExtractionProgress(0); 
       setError(null);
       setExtractionStatus(""); 
     }
@@ -125,14 +125,13 @@ const Dashboard = ({ user: currentUser }) => {
 
     try {
         // --- STEP 1: CLIENT-SIDE AUDIO EXTRACTION ---
-        // If it's a video file, we extract audio LOCALLY before uploading
         if (selectedFile.type.startsWith('video/')) {
             setExtractionStatus("Initializing Audio Extractor...");
             
             try {
                 // Use our new utility
                 const audioFile = await extractAudio(selectedFile, (progress) => {
-                    setExtractionProgress(progress); // Update the visual bar!
+                    setExtractionProgress(progress);
                     setExtractionStatus(`Extracting Audio... ${progress}%`);
                 });
                 
@@ -179,7 +178,7 @@ const Dashboard = ({ user: currentUser }) => {
 
     } catch (err) {
         console.error(err);
-        setExtractionStatus(""); // Clear status on error
+        setExtractionStatus(""); 
         let displayError = "Upload failed. Please try a smaller file or Audio-only.";
         
         if (err.response) {
@@ -235,7 +234,6 @@ const Dashboard = ({ user: currentUser }) => {
       window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // --- REVISED DELETE LOGIC (DIRECT TARGET) ---
   const confirmDelete = (e, item) => {
     e.stopPropagation(); 
     setItemToDelete(item);
@@ -245,14 +243,11 @@ const Dashboard = ({ user: currentUser }) => {
     if (!itemToDelete || !currentUser) return;
     setIsDeleting(true);
     try {
-      // FIX: SEND USER ID AND DOC ID TO ENSURE DIRECT DELETION
       await axios.delete(`${CLOUD_API_BASE}/api/history/${currentUser.uid}/${itemToDelete.id}`);
-      
       setHistory(prev => prev.filter(i => i.id !== itemToDelete.id));
       setItemToDelete(null); 
     } catch (err) {
       console.error("Delete failed:", err);
-      // More detailed error alert
       alert(`Failed to delete: ${err.response?.statusText || "Server Error"}`);
     } finally {
       setIsDeleting(false);
@@ -264,42 +259,28 @@ const Dashboard = ({ user: currentUser }) => {
   return (
     <div className="min-h-screen bg-verbatim-navy text-white font-sans selection:bg-verbatim-orange overflow-x-hidden relative">
       
-      {/* --- AURORA BACKGROUND (Suno Style) --- */}
+      {/* --- AURORA BACKGROUND --- */}
       <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none">
           <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-verbatim-orange/20 rounded-full blur-[120px] animate-blob"></div>
           <div className="absolute top-[20%] right-[-10%] w-[400px] h-[400px] bg-purple-600/20 rounded-full blur-[120px] animate-blob animation-delay-2000"></div>
           <div className="absolute bottom-[-10%] left-[20%] w-[600px] h-[600px] bg-blue-600/10 rounded-full blur-[120px] animate-blob animation-delay-4000"></div>
       </div>
 
-      {/* --- CONTENT WRAPPER (Z-10) --- */}
       <div className="relative z-10">
 
-        {/* --- DELETE CONFIRMATION MODAL --- */}
+        {/* --- DELETE MODAL --- */}
         {itemToDelete && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setItemToDelete(null)}></div>
             <div className="relative bg-verbatim-navy border border-red-500/30 p-6 rounded-2xl shadow-2xl max-w-sm w-full animate-in fade-in zoom-in duration-200">
               <div className="flex items-center gap-3 mb-4">
-                  <div className="p-3 bg-red-500/20 rounded-full text-red-500">
-                      <AlertTriangle size={24} />
-                  </div>
+                  <div className="p-3 bg-red-500/20 rounded-full text-red-500"><AlertTriangle size={24} /></div>
                   <h3 className="text-xl font-bold text-white">Delete Project?</h3>
               </div>
-              <p className="text-gray-400 mb-6 text-sm">
-                  Are you sure you want to delete <span className="text-white font-bold">"{itemToDelete.filename}"</span>? This action cannot be undone.
-              </p>
+              <p className="text-gray-400 mb-6 text-sm">Are you sure you want to delete <span className="text-white font-bold">"{itemToDelete.filename}"</span>? This action cannot be undone.</p>
               <div className="flex gap-3">
-                  <button 
-                    onClick={() => setItemToDelete(null)}
-                    className="flex-1 py-3 bg-white/5 hover:bg-white/10 rounded-xl text-sm font-bold transition-colors"
-                  >
-                      Cancel
-                  </button>
-                  <button 
-                    onClick={executeDelete}
-                    disabled={isDeleting}
-                    className="flex-1 py-3 bg-red-600 hover:bg-red-700 rounded-xl text-sm font-bold transition-colors flex items-center justify-center gap-2"
-                  >
+                  <button onClick={() => setItemToDelete(null)} className="flex-1 py-3 bg-white/5 hover:bg-white/10 rounded-xl text-sm font-bold transition-colors">Cancel</button>
+                  <button onClick={executeDelete} disabled={isDeleting} className="flex-1 py-3 bg-red-600 hover:bg-red-700 rounded-xl text-sm font-bold transition-colors flex items-center justify-center gap-2">
                       {isDeleting ? <Loader2 className="animate-spin" size={16}/> : <Trash2 size={16} />}
                       {isDeleting ? "Deleting..." : "Yes, Delete"}
                   </button>
@@ -313,7 +294,8 @@ const Dashboard = ({ user: currentUser }) => {
             
             <div className="flex items-center gap-4 cursor-pointer group" onClick={() => window.location.href = '/dashboard'}>
               <div className="relative flex items-center justify-center">
-                <img src={LOGO_PATH} alt="Verbatim Logo" className="h-12 w-auto md:h-16 rounded-lg border border-verbatim-orange bg-white p-1 object-contain" />
+                {/* LOGO SIZE INCREASED HERE */}
+                <img src={LOGO_PATH} alt="Verbatim Logo" className="h-16 w-auto md:h-24 rounded-lg border border-verbatim-orange bg-white p-1 object-contain" />
               </div>
               <div className="flex flex-col -space-y-1">
                 <span className="text-xl md:text-2xl font-black tracking-tighter italic">VERBATIM</span>
@@ -328,21 +310,14 @@ const Dashboard = ({ user: currentUser }) => {
                       <span className="text-xs font-medium text-gray-300 max-w-[100px] truncate">{currentUser.email?.split('@')[0]}</span>
                   </div>
               )}
-
               <button onClick={() => setShowHistory(true)} className="flex items-center gap-2 px-3 py-2 bg-white/5 hover:bg-white/10 rounded-lg border border-white/10 transition-all text-xs font-bold uppercase tracking-wider">
                   <History size={16} className="text-verbatim-orange"/> <span className="hidden sm:inline">History</span>
               </button>
-              
               <div className="flex items-center gap-2 px-3 py-2 bg-white/5 rounded-lg border border-white/10 animate-in fade-in">
                   <div className="w-2 h-2 rounded-full animate-pulse bg-green-500"></div>
-                  <span className="text-[10px] md:text-xs font-bold text-gray-300 uppercase tracking-widest">
-                      Engine Online
-                  </span>
+                  <span className="text-[10px] md:text-xs font-bold text-gray-300 uppercase tracking-widest">Engine Online</span>
               </div>
-              
-              <button onClick={handleLogout} className="p-2 text-gray-400 hover:text-red-400 transition-all hover:bg-white/5 rounded-lg">
-                  <LogOut size={20} />
-              </button>
+              <button onClick={handleLogout} className="p-2 text-gray-400 hover:text-red-400 transition-all hover:bg-white/5 rounded-lg"><LogOut size={20} /></button>
             </div>
           </div>
         </nav>
@@ -367,15 +342,7 @@ const Dashboard = ({ user: currentUser }) => {
                                           <ChevronRight size={16} className="text-gray-500 group-hover:translate-x-1 transition-transform"/>
                                       </div>
                                       <p className="text-xs text-gray-500">{new Date(item.upload_time).toLocaleDateString()} • {new Date(item.upload_time).toLocaleTimeString()}</p>
-                                      
-                                      {/* DELETE BUTTON */}
-                                      <button 
-                                          onClick={(e) => confirmDelete(e, item)}
-                                          className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-white/5 hover:bg-red-500/20 text-gray-500 hover:text-red-500 rounded-lg transition-all z-10"
-                                          title="Delete Project"
-                                      >
-                                          <Trash2 size={16} />
-                                      </button>
+                                      <button onClick={(e) => confirmDelete(e, item)} className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-white/5 hover:bg-red-500/20 text-gray-500 hover:text-red-500 rounded-lg transition-all z-10" title="Delete Project"><Trash2 size={16} /></button>
                                   </div>
                               ))
                           )}
@@ -418,14 +385,12 @@ const Dashboard = ({ user: currentUser }) => {
 
             {isLoading && (
               <div className="mt-10 max-w-md mx-auto">
-                {/* DYNAMIC PROGRESS BAR: Uses 'currentProgress' which switches between Extract and Upload */}
                 <div className="w-full bg-white/5 rounded-full h-4 overflow-hidden border border-white/10 p-1">
-                  {/* --- FIX: Force bar to show Extraction Progress when extracting --- */}
-                  <div style={{width: `${extractionStatus ? extractionProgress : uploadProgress}%`}} className="bg-gradient-to-r from-verbatim-orange to-pink-500 h-full rounded-full transition-all duration-300" />
+                  {/* PROGRESS BAR FIX: Ensuring fallback to 0 */}
+                  <div style={{width: `${(extractionStatus ? extractionProgress : uploadProgress) || 0}%`}} className="bg-gradient-to-r from-verbatim-orange to-pink-500 h-full rounded-full transition-all duration-300" />
                 </div>
                 <div className="flex justify-between items-center mt-4">
                   <p className="text-xs md:text-sm font-black text-verbatim-orange uppercase tracking-[0.2em] animate-pulse">
-                    {/* STATUS TEXT */}
                     {extractionStatus || (uploadProgress < 100 ? `Securing Assets... ${uploadProgress}%` : "AI Engine: Generating Insights...")}
                   </p>
                   <Loader2 className="animate-spin text-verbatim-orange" size={16} />
