@@ -351,7 +351,7 @@ const Dashboard = ({ user: currentUser }) => {
               </div>
           )}
 
-        <main className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-12 pt-32 pb-40">
+        <main className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-12 pt-48 md:pt-56 pb-40">
           <div className="glass-card rounded-3xl p-6 md:p-12 text-center mb-12 border border-white/5 shadow-2xl bg-gradient-to-b from-white/5 to-transparent bg-verbatim-navy/40">
             <h2 className="text-2xl md:text-4xl font-black mb-4">Transform Your Media</h2>
             
