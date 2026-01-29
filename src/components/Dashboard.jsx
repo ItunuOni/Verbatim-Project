@@ -8,7 +8,6 @@ import {
 import { Link } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import { auth } from '../firebase';
-// --- NEW IMPORT: CLIENT-SIDE AUDIO EXTRACTOR ---
 import { extractAudio } from '../utils/audioExtractor';
 
 const CLOUD_API_BASE = "https://verbatim-backend.onrender.com";
@@ -18,9 +17,15 @@ const Dashboard = ({ user: currentUser }) => {
   
   // --- PROGRESS STATES ---
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [extractionProgress, setExtractionProgress] = useState(0); // NEW: Track extraction % visually
+  const [extractionProgress, setExtractionProgress] = useState(0); 
   
   const [processingResults, setProcessingResults] = useState(null);
+  
+  // --- NEW: EDITABLE TEXT STATES ---
+  const [editTranscript, setEditTranscript] = useState("");
+  const [editSummary, setEditSummary] = useState("");
+  const [editBlog, setEditBlog] = useState("");
+
   const [isLoading, setIsLoading] = useState(false);
   const [extractionStatus, setExtractionStatus] = useState(""); 
   const [error, setError] = useState(null);
@@ -29,7 +34,6 @@ const Dashboard = ({ user: currentUser }) => {
   const [history, setHistory] = useState([]);
   const [showHistory, setShowHistory] = useState(false);
   
-  // --- DELETE CONFIRMATION STATE ---
   const [itemToDelete, setItemToDelete] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
   
@@ -61,6 +65,15 @@ const Dashboard = ({ user: currentUser }) => {
 
     if (currentUser?.uid) fetchHistory();
   }, [currentUser]);
+
+  // --- NEW: SYNC EDITABLE STATES WHEN RESULTS ARRIVE ---
+  useEffect(() => {
+    if (processingResults) {
+        setEditTranscript(processingResults.transcript || "");
+        setEditSummary(processingResults.summary || "");
+        setEditBlog(processingResults.blog_post || "");
+    }
+  }, [processingResults]);
 
   const fetchHistory = async () => {
     try {
@@ -120,34 +133,24 @@ const Dashboard = ({ user: currentUser }) => {
     setError(null);
     setExtractionStatus(""); 
     
-    // Default: upload the selected file
     let fileToUpload = selectedFile;
 
     try {
-        // --- STEP 1: CLIENT-SIDE AUDIO EXTRACTION ---
         if (selectedFile.type.startsWith('video/')) {
             setExtractionStatus("Initializing Audio Extractor...");
-            
             try {
-                // Use our new utility
                 const audioFile = await extractAudio(selectedFile, (progress) => {
-                    setExtractionProgress(progress); // Update the visual bar!
+                    setExtractionProgress(progress);
                     setExtractionStatus(`Extracting Audio... ${progress}%`);
                 });
-                
-                // Swap the massive video for the tiny audio file!
                 fileToUpload = audioFile; 
-                
             } catch (extractErr) {
                 console.error("Extraction Failed, falling back to raw upload:", extractErr);
                 setExtractionStatus("Extraction failed. Trying raw video upload...");
-                // Fallback: Upload the original video if extraction fails
                 fileToUpload = selectedFile;
             }
         }
 
-        // --- STEP 2: UPLOAD TO BACKEND ---
-        // CRITICAL FIX: Clear extraction status so the bar switches to Upload Mode (Blue)
         setExtractionStatus(null); 
 
         const formData = new FormData();
@@ -163,7 +166,6 @@ const Dashboard = ({ user: currentUser }) => {
             onUploadProgress: (p) => {
                 const percent = Math.round((p.loaded * 100) / p.total);
                 setUploadProgress(percent);
-                // We rely on the default "Securing Assets..." text for uploading now
             },
         });
 
@@ -176,7 +178,6 @@ const Dashboard = ({ user: currentUser }) => {
         console.error(err);
         setExtractionStatus(""); 
         let displayError = "Upload failed. Please try a smaller file or Audio-only.";
-        
         if (err.response) {
              if (err.response.status === 429) displayError = "Verbatim Engine Limit. Wait 60s.";
              else if (err.response.data && err.response.data.detail) {
@@ -189,7 +190,6 @@ const Dashboard = ({ user: currentUser }) => {
         } else if (err.message === "Network Error") {
             displayError = "Network Timeout. Your file is too large for the current connection. Try an MP3 or Voice Note.";
         }
-        
         setError(displayError);
     } finally {
         setIsLoading(false);
@@ -198,7 +198,8 @@ const Dashboard = ({ user: currentUser }) => {
 
   const handleGenerateVoice = async () => {
     if (!processingResults) return;
-    const textToUse = sourceType === "Summary" ? processingResults.summary : processingResults.transcript;
+    // FIX: Use editable text instead of static processingResults
+    const textToUse = sourceType === "Summary" ? editSummary : editTranscript;
     
     setIsVoiceLoading(true);
     setGeneratedAudio(null);
@@ -287,10 +288,8 @@ const Dashboard = ({ user: currentUser }) => {
 
         <nav className="fixed w-full top-0 left-0 z-50 border-b border-white/10 bg-verbatim-navy/95 backdrop-blur-xl transition-all shadow-lg">
           <div className="max-w-7xl mx-auto px-4 py-3 md:py-4 flex flex-wrap justify-between items-center gap-4">
-            
             <div className="flex items-center gap-4 cursor-pointer group" onClick={() => window.location.href = '/dashboard'}>
               <div className="relative flex items-center justify-center">
-                {/* LOGO SIZE INCREASED HERE */}
                 <img src={LOGO_PATH} alt="Verbatim Logo" className="h-16 w-auto md:h-24 rounded-lg border border-verbatim-orange bg-white p-1 object-contain" />
               </div>
               <div className="flex flex-col -space-y-1">
@@ -298,7 +297,6 @@ const Dashboard = ({ user: currentUser }) => {
                 <span className="text-[9px] md:text-[10px] font-bold tracking-[0.2em] text-verbatim-orange uppercase">Transcription Pro</span>
               </div>
             </div>
-
             <div className="flex items-center gap-3 md:gap-4 flex-wrap justify-end">
               {currentUser && (
                   <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-white/5 rounded-full border border-white/10">
@@ -347,7 +345,7 @@ const Dashboard = ({ user: currentUser }) => {
               </div>
           )}
 
-        <main className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-12 pt-48 md:pt-56 pb-40">
+        <main className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-12 pt-48 md:pt-64 pb-40">
           <div className="glass-card rounded-3xl p-6 md:p-12 text-center mb-12 border border-white/5 shadow-2xl bg-gradient-to-b from-white/5 to-transparent bg-verbatim-navy/40">
             <h2 className="text-2xl md:text-4xl font-black mb-4">Transform Your Media</h2>
             
@@ -382,7 +380,6 @@ const Dashboard = ({ user: currentUser }) => {
             {isLoading && (
               <div className="mt-10 max-w-md mx-auto">
                 <div className="w-full bg-white/5 rounded-full h-4 overflow-hidden border border-white/10 p-1">
-                  {/* PROGRESS BAR FIX: Ensuring fallback to 0 */}
                   <div style={{width: `${(extractionStatus ? extractionProgress : uploadProgress) || 0}%`}} className="bg-gradient-to-r from-verbatim-orange to-pink-500 h-full rounded-full transition-all duration-300" />
                 </div>
                 <div className="flex justify-between items-center mt-4">
@@ -403,32 +400,47 @@ const Dashboard = ({ user: currentUser }) => {
                       <div className="p-2 bg-verbatim-orange/20 rounded-lg"><Mic className="text-verbatim-orange" size={24} /></div>
                       <h3 className="text-xl md:text-2xl font-black">Smart Transcript</h3>
                   </div>
-                  <button onClick={() => downloadText(`${processingResults.filename}_transcript.txt`, processingResults.transcript)} className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-sm font-bold transition-all w-full md:w-auto justify-center"><Download size={16}/> Save TXT</button>
+                  {/* EDITABLE BUTTON: Saves the edited transcript */}
+                  <button onClick={() => downloadText(`${processingResults.filename}_transcript.txt`, editTranscript)} className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-sm font-bold transition-all w-full md:w-auto justify-center"><Download size={16}/> Save TXT</button>
                 </div>
-                <div className="bg-black/40 p-6 md:p-8 rounded-2xl text-gray-300 leading-relaxed max-h-[400px] overflow-y-auto font-mono text-xs md:text-sm border border-white/5 scrollbar-thin scrollbar-thumb-verbatim-orange break-words whitespace-pre-wrap">
-                  {processingResults.transcript}
-                </div>
+                {/* EDITABLE TRANSCRIPT AREA */}
+                <textarea 
+                    value={editTranscript}
+                    onChange={(e) => setEditTranscript(e.target.value)}
+                    className="w-full h-96 bg-black/40 p-6 md:p-8 rounded-2xl text-gray-300 leading-relaxed font-mono text-xs md:text-sm border border-white/5 scrollbar-thin scrollbar-thumb-verbatim-orange resize-y focus:outline-none focus:border-verbatim-orange/50 transition-colors"
+                    placeholder="Transcript will appear here..."
+                />
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div className="glass-card p-6 md:p-8 rounded-2xl h-full flex flex-col border border-white/10 bg-white/[0.02]">
                   <div className="flex items-center justify-between mb-4">
                       <h3 className="text-lg md:text-xl font-bold text-white flex items-center gap-2"><AlignLeft className="text-verbatim-orange" /> Summary</h3>
-                      <button onClick={() => downloadText(`${processingResults.filename}_summary.txt`, processingResults.summary)} className="p-2 bg-white/10 hover:bg-white/20 rounded-lg transition-all"><Download size={16}/></button>
+                      {/* EDITABLE BUTTON: Saves the edited summary */}
+                      <button onClick={() => downloadText(`${processingResults.filename}_summary.txt`, editSummary)} className="p-2 bg-white/10 hover:bg-white/20 rounded-lg transition-all"><Download size={16}/></button>
                   </div>
-                  <div className="text-gray-300 leading-relaxed h-[400px] md:h-[500px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-verbatim-orange/30 text-base md:text-lg">
-                      {processingResults.summary}
-                  </div>
+                  {/* EDITABLE SUMMARY AREA */}
+                  <textarea 
+                      value={editSummary}
+                      onChange={(e) => setEditSummary(e.target.value)}
+                      className="w-full h-[400px] md:h-[500px] bg-transparent text-gray-300 leading-relaxed resize-none focus:outline-none focus:ring-0 border-none scrollbar-thin scrollbar-thumb-verbatim-orange/30 text-base md:text-lg"
+                      placeholder="Summary will appear here..."
+                  />
                 </div>
                 
                 <div className="glass-card p-6 md:p-8 rounded-2xl h-full flex flex-col border border-white/10 bg-white/[0.02]">
                   <div className="flex items-center justify-between mb-4">
                       <h3 className="text-lg md:text-xl font-bold text-white flex items-center gap-2"><FileText className="text-verbatim-orange" /> Blog Post</h3>
-                      <button onClick={() => downloadText(`${processingResults.filename}_blog.txt`, processingResults.blog_post)} className="p-2 bg-white/10 hover:bg-white/20 rounded-lg transition-all"><Download size={16}/></button>
+                      {/* EDITABLE BUTTON: Saves the edited blog */}
+                      <button onClick={() => downloadText(`${processingResults.filename}_blog.txt`, editBlog)} className="p-2 bg-white/10 hover:bg-white/20 rounded-lg transition-all"><Download size={16}/></button>
                   </div>
-                  <div className="text-gray-300 leading-relaxed whitespace-pre-line h-[400px] md:h-[500px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-verbatim-orange/30">
-                      {processingResults.blog_post || "No blog post generated."}
-                  </div>
+                  {/* EDITABLE BLOG AREA */}
+                  <textarea 
+                      value={editBlog}
+                      onChange={(e) => setEditBlog(e.target.value)}
+                      className="w-full h-[400px] md:h-[500px] bg-transparent text-gray-300 leading-relaxed resize-none focus:outline-none focus:ring-0 border-none scrollbar-thin scrollbar-thumb-verbatim-orange/30 whitespace-pre-wrap"
+                      placeholder="Blog post will appear here..."
+                  />
                 </div>
               </div>
 
@@ -542,7 +554,7 @@ const Dashboard = ({ user: currentUser }) => {
         <Link 
           to="/blog" 
           state={{ 
-            blogContent: processingResults?.blog_post, 
+            blogContent: editBlog, // FIX: Pass edited blog content to the Blog page
             blogTitle: processingResults ? `Insights: ${processingResults.filename}` : "VBT Blog" 
           }}
           className="fixed bottom-6 right-6 z-40 group flex items-center gap-3 bg-verbatim-navy/95 backdrop-blur-xl border border-verbatim-orange/40 p-3 rounded-2xl shadow-2xl hover:border-verbatim-orange hover:bg-verbatim-orange transition-all duration-300 active:scale-95"

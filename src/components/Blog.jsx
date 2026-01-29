@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Copy, Check, ArrowLeft, Globe, Mic, Cpu, Share2, Linkedin, Twitter } from 'lucide-react';
+import { Copy, Check, ArrowLeft, Globe, Mic, Cpu, Share2, Linkedin, Twitter, Edit3, Save } from 'lucide-react';
 
 const Blog = () => {
     const location = useLocation();
@@ -15,6 +15,7 @@ const Blog = () => {
 
     const [blogTitle, setBlogTitle] = useState(cleanTitle);
     const [blogContent, setBlogContent] = useState(incomingContent);
+    const [isEditing, setIsEditing] = useState(false); // NEW: Toggle editing mode
     
     // --- 2. VERBATIM INTELLIGENCE STATE ---
     const [languages, setLanguages] = useState([]);
@@ -73,7 +74,7 @@ const Blog = () => {
     };
 
     const handleVerbatimProcess = async () => {
-        if (!location.state?.blogContent) {
+        if (!location.state?.blogContent && !blogContent) {
             alert("Nothing to translate! Please process a video in the Dashboard first.");
             return;
         }
@@ -144,8 +145,29 @@ const Blog = () => {
                     <div className="lg:col-span-2 space-y-8">
                         <div className="bg-white/5 p-8 md:p-12 rounded-3xl border border-white/10 shadow-2xl relative overflow-hidden backdrop-blur-md">
                             <div className="absolute top-0 right-0 p-12 bg-verbatim-orange/10 rounded-bl-[100px] -mr-10 -mt-10 blur-3xl pointer-events-none"></div>
-                            <h1 className="text-3xl md:text-5xl font-black mb-8 leading-tight">{blogTitle}</h1>
-                            <div className="prose prose-invert max-w-none">{formatText(blogContent)}</div>
+                            
+                            <div className="flex items-center justify-between mb-8">
+                                <h1 className="text-3xl md:text-5xl font-black leading-tight">{blogTitle}</h1>
+                                {/* EDIT TOGGLE BUTTON */}
+                                <button 
+                                    onClick={() => setIsEditing(!isEditing)} 
+                                    className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-xl text-sm font-bold transition-all uppercase tracking-widest"
+                                >
+                                    {isEditing ? <Save size={16} /> : <Edit3 size={16} />}
+                                    {isEditing ? "Save Text" : "Edit Text"}
+                                </button>
+                            </div>
+
+                            {/* CONDITIONAL RENDERING: Display Mode vs Edit Mode */}
+                            {isEditing ? (
+                                <textarea 
+                                    value={blogContent}
+                                    onChange={(e) => setBlogContent(e.target.value)}
+                                    className="w-full h-[600px] bg-black/40 p-6 rounded-2xl text-gray-300 leading-relaxed font-mono text-base border border-white/10 focus:outline-none focus:border-verbatim-orange/50 transition-colors resize-y"
+                                />
+                            ) : (
+                                <div className="prose prose-invert max-w-none">{formatText(blogContent)}</div>
+                            )}
                         </div>
                         
                         {translatedText && (
