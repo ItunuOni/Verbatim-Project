@@ -146,12 +146,12 @@ const Blog = () => {
                         <div className="bg-white/5 p-8 md:p-12 rounded-3xl border border-white/10 shadow-2xl relative overflow-hidden backdrop-blur-md">
                             <div className="absolute top-0 right-0 p-12 bg-verbatim-orange/10 rounded-bl-[100px] -mr-10 -mt-10 blur-3xl pointer-events-none"></div>
                             
-                            <div className="flex items-center justify-between mb-8">
-                                <h1 className="text-3xl md:text-5xl font-black leading-tight">{blogTitle}</h1>
+                            <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-8 gap-6">
+                                <h1 className="text-3xl md:text-5xl font-black leading-tight break-words w-full md:w-auto">{blogTitle}</h1>
                                 {/* EDIT TOGGLE BUTTON */}
                                 <button 
                                     onClick={() => setIsEditing(!isEditing)} 
-                                    className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-xl text-sm font-bold transition-all uppercase tracking-widest"
+                                    className="flex-shrink-0 flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-xl text-sm font-bold transition-all uppercase tracking-widest"
                                 >
                                     {isEditing ? <Save size={16} /> : <Edit3 size={16} />}
                                     {isEditing ? "Save Text" : "Edit Text"}
