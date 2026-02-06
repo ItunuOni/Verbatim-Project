@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Copy, Check, ArrowLeft, Globe, Mic, Cpu, Share2, Linkedin, Twitter, Edit3, Save } from 'lucide-react';
+import { Copy, Check, ArrowLeft, Globe, Mic, Cpu, Share2, Linkedin, Twitter, Edit3, Save, Download } from 'lucide-react';
 
 const Blog = () => {
     const location = useLocation();
@@ -146,12 +146,15 @@ const Blog = () => {
                         <div className="bg-white/5 p-8 md:p-12 rounded-3xl border border-white/10 shadow-2xl relative overflow-hidden backdrop-blur-md">
                             <div className="absolute top-0 right-0 p-12 bg-verbatim-orange/10 rounded-bl-[100px] -mr-10 -mt-10 blur-3xl pointer-events-none"></div>
                             
-                            <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-8 gap-6">
-                                <h1 className="text-3xl md:text-5xl font-black leading-tight break-words w-full md:w-auto">{blogTitle}</h1>
-                                {/* EDIT TOGGLE BUTTON */}
+                            {/* --- FIXED: HEADER LAYOUT WITH TRUNCATION --- */}
+                            <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-8 gap-6 w-full overflow-hidden">
+                                <h1 className="text-3xl md:text-5xl font-black leading-tight truncate w-full md:flex-1 pr-4" title={blogTitle}>
+                                    {blogTitle}
+                                </h1>
+                                {/* EDIT TOGGLE BUTTON - Fixed Width */}
                                 <button 
                                     onClick={() => setIsEditing(!isEditing)} 
-                                    className="flex-shrink-0 flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-xl text-sm font-bold transition-all uppercase tracking-widest"
+                                    className="flex-shrink-0 whitespace-nowrap flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-xl text-sm font-bold transition-all uppercase tracking-widest"
                                 >
                                     {isEditing ? <Save size={16} /> : <Edit3 size={16} />}
                                     {isEditing ? "Save Text" : "Edit Text"}
@@ -189,7 +192,7 @@ const Blog = () => {
                     <div className="lg:col-span-1">
                         <div className="space-y-6 sticky top-8">
                             
-                            {/* --- NEW SOCIAL SHARE CARD (ADDED HERE) --- */}
+                            {/* --- SOCIAL SHARE CARD --- */}
                             <div className="bg-white/5 backdrop-blur-xl p-6 rounded-3xl border border-white/10 shadow-2xl">
                                 <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2"><Share2 size={14}/> Share Insights</h3>
                                 <div className="grid grid-cols-2 gap-3">
@@ -253,7 +256,16 @@ const Blog = () => {
                                                 <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                                                 <p className="text-[10px] font-black text-green-400 uppercase tracking-[0.2em]">Ready for Playback</p>
                                             </div>
-                                            <audio src={audioUrl} controls className="w-full h-10 accent-verbatim-orange" />
+                                            <audio src={audioUrl} controls className="w-full h-10 accent-verbatim-orange mb-4" />
+                                            
+                                            {/* --- NEW DOWNLOAD BUTTON --- */}
+                                            <a 
+                                                href={audioUrl} 
+                                                download={`Verbatim_Dub_${selectedLang}_${Date.now()}.mp3`}
+                                                className="flex items-center justify-center gap-2 w-full py-2 bg-white/5 hover:bg-green-500/20 text-green-400 border border-green-500/30 rounded-lg text-xs font-bold uppercase tracking-widest transition-all hover:scale-[1.02]"
+                                            >
+                                                <Download size={14} /> Download Audio
+                                            </a>
                                         </div>
                                     )}
                                 </div>
