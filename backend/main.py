@@ -5,7 +5,7 @@ import re
 import json 
 import time 
 import gc   
-import subprocess # NEW: FOR TURBO SPEED
+import subprocess 
 from pathlib import Path
 from typing import Annotated
 import datetime
@@ -15,11 +15,12 @@ from dotenv import load_dotenv
 import google.generativeai as genai
 import firebase_admin
 from firebase_admin import credentials, firestore
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-# REMOVED: moviepy (It was the cause of the slowness)
 import edge_tts
+import yt_dlp  # NEW: FOR LINK EXTRACTION
+from pydantic import BaseModel
 
 # --- 1. SETUP & CONFIG ---
 load_dotenv()
@@ -62,7 +63,6 @@ def clean_transcript(text):
     return clean_text
 
 def clean_text_for_tts(text):
-    """Removes Markdown symbols so the AI doesn't say 'Hashtag' or 'Asterisk'"""
     text = re.sub(r'#+\s*', '', text)
     text = re.sub(r'\*+', '', text)
     text = re.sub(r'_+', '', text)
@@ -70,7 +70,6 @@ def clean_text_for_tts(text):
     return text
 
 def retry_gemini_call(model_instance, prompt_input, retries=3, delay=5):
-    """Wraps the AI call in a loop for reliability."""
     for attempt in range(retries):
         try:
             return model_instance.generate_content(prompt_input)
@@ -131,6 +130,15 @@ TEMP_DIR = Path("temp")
 TEMP_DIR.mkdir(exist_ok=True)
 app.mount("/temp", StaticFiles(directory="temp"), name="temp")
 
+# --- DATA MODELS ---
+class LinkRequest(BaseModel):
+    url: str
+    user_id: str
+
+class TextRequest(BaseModel):
+    text: str
+    user_id: str
+
 # --- 4. ENDPOINTS ---
 
 @app.get("/")
@@ -160,16 +168,12 @@ def get_history(user_id: str):
         print(f"❌ History Fetch Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-# --- NEW: DIRECT DELETE ENDPOINT ---
-# This is the fix. It deletes from the exact path: users/{user_id}/transcriptions/{doc_id}
 @app.delete("/api/history/{user_id}/{doc_id}")
 def delete_history_item(user_id: str, doc_id: str):
     try:
         doc_ref = db.collection('users').document(user_id).collection('transcriptions').document(doc_id)
-        # Check existence first (optional, but good for debugging)
         if not doc_ref.get().exists:
              raise HTTPException(status_code=404, detail="Item not found")
-             
         doc_ref.delete()
         return {"status": "deleted", "id": doc_id}
     except Exception as e:
@@ -185,7 +189,6 @@ async def generate_audio(
 ):
     try:
         translation_prompt = f"Translate the following text into {language}. Return ONLY the translation, no extra text:\n\n{text}"
-        
         translation_response = retry_gemini_call(model, translation_prompt)
         translated_text = translation_response.text.strip()
         tts_ready_text = clean_text_for_tts(translated_text)
@@ -194,14 +197,8 @@ async def generate_audio(
         output_filename = f"dub_{uuid.uuid4()}.mp3"
         output_path = TEMP_DIR / output_filename
         
-        communicate = edge_tts.Communicate(
-            tts_ready_text, 
-            voice_id, 
-            rate=settings["rate"], 
-            pitch=settings["pitch"]
-        )
+        communicate = edge_tts.Communicate(tts_ready_text, voice_id, rate=settings["rate"], pitch=settings["pitch"])
         await communicate.save(str(output_path))
-        
         gc.collect()
         
         return {
@@ -210,9 +207,117 @@ async def generate_audio(
             "translated_text": translated_text,
             "language": language
         }
-
     except Exception as e:
         print(f"❌ Dubbing Error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# --- NEW: PROCESS LINK ENDPOINT ---
+@app.post("/api/process-link")
+async def process_link(request: LinkRequest):
+    if not request.user_id: raise HTTPException(status_code=400, detail="User ID required.")
+    
+    unique_filename = f"link_extract_{uuid.uuid4()}"
+    output_template = str(TEMP_DIR / unique_filename)
+    audio_file = None
+    
+    print(f"🚀 Processing Link: {request.url}")
+
+    try:
+        # 1. Download Audio using YT-DLP
+        ydl_opts = {
+            'format': 'bestaudio/best',
+            'outtmpl': output_template + '.%(ext)s',
+            'postprocessors': [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'mp3',
+                'preferredquality': '192',
+            }],
+            'quiet': True,
+            'no_warnings': True,
+        }
+        
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([request.url])
+            
+        # Find the file (yt-dlp adds extension)
+        final_path = Path(output_template + ".mp3")
+        if not final_path.exists():
+            raise Exception("Download failed - file not found")
+            
+        # 2. Upload to Gemini
+        media_file = genai.upload_file(path=str(final_path), mime_type="audio/mp3")
+        
+        while media_file.state.name == "PROCESSING":
+            time.sleep(2)
+            media_file = genai.get_file(media_file.name)
+            
+        # 3. Analyze
+        response = retry_gemini_call(model, [
+            media_file,
+            "Provide: 1. Full Transcript (No timestamps). 2. Blog Post (500 words). 3. Summary (150 words). Format with headings: 'Transcript', 'Blog Post', 'Summary'."
+        ])
+
+        full_text = response.text
+        transcript = full_text.split("Transcript")[1].split("Blog Post")[0].strip() if "Transcript" in full_text else ""
+        clean_trans = clean_transcript(transcript)
+        blog_post = full_text.split("Blog Post")[1].split("Summary")[0].strip() if "Blog Post" in full_text else ""
+        summary = full_text.split("Summary")[1].strip() if "Summary" in full_text else ""
+
+        # 4. Save to DB
+        db.collection('users').document(request.user_id).collection('transcriptions').document().set({
+            "filename": f"Link: {request.url[:30]}...",
+            "upload_time": firestore.SERVER_TIMESTAMP,
+            "transcript": clean_trans, 
+            "blog_post": blog_post, 
+            "summary": summary
+        })
+        
+        # Cleanup
+        if final_path.exists(): os.remove(final_path)
+
+        return {"message": "Success", "transcript": clean_trans, "blog_post": blog_post, "summary": summary, "filename": "Web Link Asset"}
+
+    except Exception as e:
+        print(f"❌ Link Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# --- NEW: PROCESS TEXT ENDPOINT ---
+@app.post("/api/process-text")
+async def process_text(request: TextRequest):
+    if not request.user_id: raise HTTPException(status_code=400, detail="User ID required.")
+    
+    print("🚀 Processing Raw Text Input...")
+    try:
+        # Direct Gemini Call (No File Upload needed)
+        prompt = f"""
+        Analyze the following text.
+        1. Return the text exactly as provided under the heading 'Transcript'.
+        2. Write a Viral Blog Post (500 words) based on it under 'Blog Post'.
+        3. Write a Strategic Summary (150 words) under 'Summary'.
+        
+        TEXT INPUT:
+        {request.text[:100000]} 
+        """
+        
+        response = retry_gemini_call(model, prompt)
+        full_text = response.text
+        
+        transcript = request.text # Preserve original
+        blog_post = full_text.split("Blog Post")[1].split("Summary")[0].strip() if "Blog Post" in full_text else ""
+        summary = full_text.split("Summary")[1].strip() if "Summary" in full_text else ""
+
+        db.collection('users').document(request.user_id).collection('transcriptions').document().set({
+            "filename": f"Text Note: {datetime.datetime.now().strftime('%Y-%m-%d')}",
+            "upload_time": firestore.SERVER_TIMESTAMP,
+            "transcript": transcript, 
+            "blog_post": blog_post, 
+            "summary": summary
+        })
+
+        return {"message": "Success", "transcript": transcript, "blog_post": blog_post, "summary": summary, "filename": "Text Analysis"}
+
+    except Exception as e:
+        print(f"❌ Text Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/process-media")
@@ -231,28 +336,17 @@ async def process_media(file: UploadFile, user_id: Annotated[str, Form()]):
         path_to_upload = temp_filepath
         upload_mime_type = "audio/mp3" 
 
-        # --- TURBO VIDEO PROCESSING (FFMPEG) ---
         if file_extension in ['.mp4', '.mov', '.avi', '.mkv', '.webm']:
             audio_path = TEMP_DIR / f"{temp_filepath.stem}.mp3"
-            
             print(f"🚀 Starting Turbo Extraction for {file.filename}...")
-            # Use FFmpeg subprocess instead of MoviePy (MUCH FASTER, LESS RAM)
-            command = [
-                "ffmpeg", "-i", str(temp_filepath), 
-                "-vn", "-acodec", "libmp3lame", "-q:a", "4", 
-                "-y", str(audio_path)
-            ]
-            
-            # Run FFmpeg - this is usually installed on Render by default
+            command = ["ffmpeg", "-i", str(temp_filepath), "-vn", "-acodec", "libmp3lame", "-q:a", "4", "-y", str(audio_path)]
             result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             
             if result.returncode != 0:
                 print(f"⚠️ FFmpeg failed, falling back to raw upload. Error: {result.stderr}")
-                # Fallback: Just try uploading the video directly if extraction fails
                 path_to_upload = temp_filepath
-                upload_mime_type = "video/mp4" # Generic fallback
+                upload_mime_type = "video/mp4" 
             else:
-                print("✅ Turbo Extraction Complete.")
                 path_to_upload = audio_path
                 files_to_cleanup.append(audio_path)
                 upload_mime_type = "audio/mp3"
@@ -260,17 +354,12 @@ async def process_media(file: UploadFile, user_id: Annotated[str, Form()]):
         elif file_extension == ".wav":
             upload_mime_type = "audio/wav"
         
-        # Explicit Mime Type Fix
         media_file = genai.upload_file(path=str(path_to_upload), mime_type=upload_mime_type)
         
-        # [FIX 3] PROCESSING WAIT LOOP
-        # Ensures we don't ask Gemini for the text while it is still "watching" the video
         while media_file.state.name == "PROCESSING":
-            print("⏳ Waiting for Gemini processing...")
             time.sleep(2)
             media_file = genai.get_file(media_file.name)
             
-        # USE NEW RETRY WRAPPER FOR MAIN ANALYSIS
         response = retry_gemini_call(model, [
             media_file,
             "Provide: 1. Full Transcript (Do NOT include timestamps, timecodes, or speaker labels). 2. Blog Post (500 words). 3. Summary (150 words). Format with headings: 'Transcript', 'Blog Post', 'Summary'."
@@ -301,8 +390,6 @@ async def process_media(file: UploadFile, user_id: Annotated[str, Form()]):
     finally:
         for path in files_to_cleanup:
             if path.exists(): 
-                try:
-                    os.remove(path)
-                except:
-                    pass
+                try: os.remove(path)
+                except: pass
         gc.collect()
