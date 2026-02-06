@@ -8,7 +8,7 @@ import gc
 import subprocess 
 import glob 
 import sys
-import requests  # REQUIRED FOR RELAY FALLBACK
+import requests
 from pathlib import Path
 from typing import Annotated
 import datetime
@@ -176,7 +176,15 @@ EMOTION_SETTINGS = {
 
 # --- 3. APP INITIALIZATION ---
 app = FastAPI()
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"], expose_headers=["*"], allow_credentials=True)
+# FIXED: Removed duplicate 'allow_credentials' argument
+app.add_middleware(
+    CORSMiddleware, 
+    allow_origins=["*"], 
+    allow_credentials=True, 
+    allow_methods=["*"], 
+    allow_headers=["*"], 
+    expose_headers=["*"]
+)
 
 TEMP_DIR = Path("temp")
 TEMP_DIR.mkdir(exist_ok=True)
@@ -344,7 +352,7 @@ async def process_link(request: LinkRequest):
         print(f"❌ Link Error Detail: {e}")
         raise HTTPException(status_code=500, detail=f"Engine Error: {str(e)}")
 
-# --- FIXED TEXT PROCESSOR (ADDED MISSING EXCEPT BLOCK) ---
+# --- FIXED TEXT PROCESSOR ---
 @app.post("/api/process-text")
 async def process_text(request: TextRequest):
     if not request.user_id: raise HTTPException(status_code=400, detail="User ID required.")
@@ -378,7 +386,7 @@ async def process_text(request: TextRequest):
 
         return {"message": "Success", "transcript": transcript, "blog_post": blog_post, "summary": summary, "filename": "Text Analysis"}
 
-    except Exception as e: # <--- THIS WAS MISSING
+    except Exception as e:
         print(f"❌ Text Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
