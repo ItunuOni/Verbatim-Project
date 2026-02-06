@@ -7,6 +7,7 @@ import time
 import gc   
 import subprocess 
 import glob 
+import sys
 from pathlib import Path
 from typing import Annotated
 import datetime
@@ -25,7 +26,7 @@ from pydantic import BaseModel
 
 # --- NEW: AUTO-INSTALL FFMPEG FOR RENDER ---
 import static_ffmpeg
-static_ffmpeg.add_paths()  # This adds ffmpeg to the system path automatically
+static_ffmpeg.add_paths()  # Adds ffmpeg to system PATH
 
 # --- 1. SETUP & CONFIG ---
 load_dotenv()
@@ -216,7 +217,7 @@ async def generate_audio(
         print(f"❌ Dubbing Error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-# --- ROBUST LINK PROCESSOR (WITH FFMPEG SUPPORT) ---
+# --- ROBUST LINK PROCESSOR (ANDROID CLIENT BYPASS) ---
 @app.post("/api/process-link")
 async def process_link(request: LinkRequest):
     if not request.user_id: raise HTTPException(status_code=400, detail="User ID required.")
@@ -227,18 +228,26 @@ async def process_link(request: LinkRequest):
     print(f"🚀 Processing Link: {request.url}")
 
     try:
-        # 1. DOWNLOAD AUDIO (IPv4 Enforced to avoid Blocks)
+        # 1. DOWNLOAD AUDIO USING ANDROID CLIENT SPOOFING
+        # This is the "Magic Fix" for 403 Forbidden errors on Cloud Servers
         ydl_opts = {
             'format': 'bestaudio/best', 
             'outtmpl': output_template + '.%(ext)s',
-            'quiet': True,
-            'no_warnings': True,
+            'quiet': False, # Enable logs for debugging
+            'no_warnings': False,
             'noplaylist': True,
             'nocheckcertificate': True,
-            'ignoreerrors': True,
-            'source_address': '0.0.0.0', # Force IPv4
+            'ignoreerrors': False,
+            # Force IPv4 to avoid IPv6 blocks
+            'source_address': '0.0.0.0', 
+            # THE SECRET SAUCE: Use Android Client API
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['android', 'web'],
+                }
+            },
             'http_headers': {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                'User-Agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Mobile Safari/537.36',
             }
         }
         
@@ -248,7 +257,7 @@ async def process_link(request: LinkRequest):
         # 2. FIND THE FILE
         found_files = glob.glob(f"{output_template}.*")
         if not found_files:
-            raise Exception("Download failed - no file found on server. Link might be private or blocked.")
+            raise Exception("Download completed but file not found. Check server permissions.")
         
         final_path = Path(found_files[0])
         print(f"✅ Downloaded: {final_path}")
@@ -286,8 +295,9 @@ async def process_link(request: LinkRequest):
         return {"message": "Success", "transcript": clean_trans, "blog_post": blog_post, "summary": summary, "filename": "Web Link Asset"}
 
     except Exception as e:
-        print(f"❌ Link Error: {e}")
-        raise HTTPException(status_code=500, detail=f"Link Processing Failed. {str(e)[:100]}")
+        print(f"❌ Link Error Detail: {e}")
+        # Send the EXACT error to frontend so we can debug if it fails again
+        raise HTTPException(status_code=500, detail=f"Engine Error: {str(e)}")
 
 @app.post("/api/process-text")
 async def process_text(request: TextRequest):
