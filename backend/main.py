@@ -6,6 +6,7 @@ import json
 import time 
 import gc   
 import subprocess 
+import glob 
 from pathlib import Path
 from typing import Annotated
 import datetime
@@ -19,7 +20,7 @@ from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import edge_tts
-import yt_dlp  # NEW: FOR LINK EXTRACTION
+import yt_dlp 
 from pydantic import BaseModel
 
 # --- 1. SETUP & CONFIG ---
@@ -55,7 +56,7 @@ genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 MODEL_NAME = "gemini-flash-latest"
 model = genai.GenerativeModel(MODEL_NAME)
 
-# --- HELPERS: CLEANERS & RETRY LOGIC ---
+# --- HELPERS ---
 def clean_transcript(text):
     clean_text = re.sub(r'\*\d+:\d+\s*-\s*\d+:\d+\*', '', text)
     clean_text = re.sub(r'\[\d+:\d+\]', '', clean_text)
@@ -211,47 +212,51 @@ async def generate_audio(
         print(f"❌ Dubbing Error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-# --- NEW: PROCESS LINK ENDPOINT ---
+# --- FIXED LINK PROCESSOR (ANTI-BOT & NO FFMPEG) ---
 @app.post("/api/process-link")
 async def process_link(request: LinkRequest):
     if not request.user_id: raise HTTPException(status_code=400, detail="User ID required.")
     
     unique_filename = f"link_extract_{uuid.uuid4()}"
     output_template = str(TEMP_DIR / unique_filename)
-    audio_file = None
     
     print(f"🚀 Processing Link: {request.url}")
 
     try:
-        # 1. Download Audio using YT-DLP
+        # 1. DOWNLOAD RAW AUDIO (No Conversion to avoid FFmpeg crash)
+        # We spoof the User-Agent to look like a real Chrome browser
         ydl_opts = {
-            'format': 'bestaudio/best',
+            'format': 'bestaudio[ext=m4a]/bestaudio/best', # Prefer m4a (Gemini loves it)
             'outtmpl': output_template + '.%(ext)s',
-            'postprocessors': [{
-                'key': 'FFmpegExtractAudio',
-                'preferredcodec': 'mp3',
-                'preferredquality': '192',
-            }],
             'quiet': True,
             'no_warnings': True,
+            'noplaylist': True,
+            'http_headers': {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            }
         }
         
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([request.url])
             
-        # Find the file (yt-dlp adds extension)
-        final_path = Path(output_template + ".mp3")
-        if not final_path.exists():
-            raise Exception("Download failed - file not found")
-            
-        # 2. Upload to Gemini
-        media_file = genai.upload_file(path=str(final_path), mime_type="audio/mp3")
+        # 2. FIND THE FILE (Extension might vary)
+        # We use glob to find whatever yt-dlp downloaded (m4a, webm, mp3)
+        found_files = glob.glob(f"{output_template}.*")
+        if not found_files:
+            raise Exception("Download failed - no file found on server.")
+        
+        final_path = Path(found_files[0])
+        print(f"✅ Downloaded: {final_path}")
+
+        # 3. UPLOAD TO GEMINI
+        # Gemini handles m4a/mp3/webm natively.
+        media_file = genai.upload_file(path=str(final_path), mime_type="audio/mp4") # audio/mp4 covers m4a
         
         while media_file.state.name == "PROCESSING":
             time.sleep(2)
             media_file = genai.get_file(media_file.name)
             
-        # 3. Analyze
+        # 4. ANALYZE
         response = retry_gemini_call(model, [
             media_file,
             "Provide: 1. Full Transcript (No timestamps). 2. Blog Post (500 words). 3. Summary (150 words). Format with headings: 'Transcript', 'Blog Post', 'Summary'."
@@ -263,7 +268,6 @@ async def process_link(request: LinkRequest):
         blog_post = full_text.split("Blog Post")[1].split("Summary")[0].strip() if "Blog Post" in full_text else ""
         summary = full_text.split("Summary")[1].strip() if "Summary" in full_text else ""
 
-        # 4. Save to DB
         db.collection('users').document(request.user_id).collection('transcriptions').document().set({
             "filename": f"Link: {request.url[:30]}...",
             "upload_time": firestore.SERVER_TIMESTAMP,
@@ -279,16 +283,15 @@ async def process_link(request: LinkRequest):
 
     except Exception as e:
         print(f"❌ Link Error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        # Return a cleaner error to the frontend
+        raise HTTPException(status_code=500, detail=f"Link Processing Failed. {str(e)[:100]}")
 
-# --- NEW: PROCESS TEXT ENDPOINT ---
 @app.post("/api/process-text")
 async def process_text(request: TextRequest):
     if not request.user_id: raise HTTPException(status_code=400, detail="User ID required.")
     
     print("🚀 Processing Raw Text Input...")
     try:
-        # Direct Gemini Call (No File Upload needed)
         prompt = f"""
         Analyze the following text.
         1. Return the text exactly as provided under the heading 'Transcript'.
