@@ -3,7 +3,7 @@ import axios from 'axios';
 import { 
   LogOut, Upload, FileAudio, CheckCircle, AlertCircle, Loader2, 
   FileText, AlignLeft, Mic, Globe, Play, Languages, User as UserIcon, Cpu, 
-  XCircle, History, Download, ChevronRight, X, Trash2, AlertTriangle
+  XCircle, History, Download, ChevronRight, X, Trash2, AlertTriangle, Link as LinkIcon, Edit3
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
@@ -14,14 +14,14 @@ const CLOUD_API_BASE = "https://verbatim-backend.onrender.com";
 
 const Dashboard = ({ user: currentUser }) => {
   const [selectedFile, setSelectedFile] = useState(null);
-  
-  // --- PROGRESS STATES ---
+  const [activeTab, setActiveTab] = useState("file"); // "file", "link", "text"
+  const [linkUrl, setLinkUrl] = useState("");
+  const [rawText, setRawText] = useState("");
+
   const [uploadProgress, setUploadProgress] = useState(0);
   const [extractionProgress, setExtractionProgress] = useState(0); 
-  
   const [processingResults, setProcessingResults] = useState(null);
   
-  // --- NEW: EDITABLE TEXT STATES ---
   const [editTranscript, setEditTranscript] = useState("");
   const [editSummary, setEditSummary] = useState("");
   const [editBlog, setEditBlog] = useState("");
@@ -39,7 +39,7 @@ const Dashboard = ({ user: currentUser }) => {
   
   const fileInputRef = useRef(null);
 
-  // --- STUDIO STATE ---
+  // STUDIO STATE
   const [voiceEmotion, setVoiceEmotion] = useState("Neutral");
   const [targetLanguage, setTargetLanguage] = useState("English (US)");
   const [sourceType, setSourceType] = useState("Summary");
@@ -50,7 +50,6 @@ const Dashboard = ({ user: currentUser }) => {
   const [generatedAudio, setGeneratedAudio] = useState(null);
   const [translatedText, setTranslatedText] = useState(null);
 
-  // 1. Initial Data Fetch
   useEffect(() => {
     axios.get(`${CLOUD_API_BASE}/api/languages`)
       .then(res => {
@@ -66,7 +65,6 @@ const Dashboard = ({ user: currentUser }) => {
     if (currentUser?.uid) fetchHistory();
   }, [currentUser]);
 
-  // --- NEW: SYNC EDITABLE STATES WHEN RESULTS ARRIVE ---
   useEffect(() => {
     if (processingResults) {
         setEditTranscript(processingResults.transcript || "");
@@ -123,6 +121,52 @@ const Dashboard = ({ user: currentUser }) => {
     document.body.removeChild(element);
   };
 
+  // --- NEW: HANDLE LINK SUBMISSION ---
+  const handleLinkSubmit = async () => {
+      if (!linkUrl || !currentUser) return;
+      setIsLoading(true);
+      setError(null);
+      setExtractionStatus("Downloading Link Content...");
+      
+      try {
+          const response = await axios.post(`${CLOUD_API_BASE}/api/process-link`, {
+              url: linkUrl,
+              user_id: currentUser.uid
+          });
+          setProcessingResults(response.data);
+          setExtractionStatus("");
+          fetchHistory();
+      } catch (err) {
+          console.error(err);
+          setError("Failed to process link. Check if it's a valid public video/audio URL.");
+      } finally {
+          setIsLoading(false);
+      }
+  };
+
+  // --- NEW: HANDLE TEXT SUBMISSION ---
+  const handleTextSubmit = async () => {
+      if (!rawText || !currentUser) return;
+      setIsLoading(true);
+      setError(null);
+      setExtractionStatus("Analyzing Text...");
+      
+      try {
+          const response = await axios.post(`${CLOUD_API_BASE}/api/process-text`, {
+              text: rawText,
+              user_id: currentUser.uid
+          });
+          setProcessingResults(response.data);
+          setExtractionStatus("");
+          fetchHistory();
+      } catch (err) {
+          console.error(err);
+          setError("Failed to analyze text.");
+      } finally {
+          setIsLoading(false);
+      }
+  };
+
   const handleUpload = async (e) => {
     if (e && e.preventDefault) e.preventDefault(); 
     if (!selectedFile || !currentUser) return;
@@ -145,7 +189,7 @@ const Dashboard = ({ user: currentUser }) => {
                 });
                 fileToUpload = audioFile; 
             } catch (extractErr) {
-                console.error("Extraction Failed, falling back to raw upload:", extractErr);
+                console.error("Fallback to raw upload:", extractErr);
                 setExtractionStatus("Extraction failed. Trying raw video upload...");
                 fileToUpload = selectedFile;
             }
@@ -181,14 +225,8 @@ const Dashboard = ({ user: currentUser }) => {
         if (err.response) {
              if (err.response.status === 429) displayError = "Verbatim Engine Limit. Wait 60s.";
              else if (err.response.data && err.response.data.detail) {
-                 if (err.response.data.detail.includes("finish_reason")) {
-                     displayError = "System Alert: Copyrighted content detected (Movies/TV). Please upload original content.";
-                 } else {
-                     displayError = err.response.data.detail;
-                 }
+                 displayError = err.response.data.detail;
              }
-        } else if (err.message === "Network Error") {
-            displayError = "Network Timeout. Your file is too large for the current connection. Try an MP3 or Voice Note.";
         }
         setError(displayError);
     } finally {
@@ -198,7 +236,6 @@ const Dashboard = ({ user: currentUser }) => {
 
   const handleGenerateVoice = async () => {
     if (!processingResults) return;
-    // FIX: Use editable text instead of static processingResults
     const textToUse = sourceType === "Summary" ? editSummary : editTranscript;
     
     setIsVoiceLoading(true);
@@ -214,8 +251,7 @@ const Dashboard = ({ user: currentUser }) => {
 
     try {
       const response = await axios.post(`${CLOUD_API_BASE}/api/generate-audio`, formData);
-      const audioPath = response.data.audio_url;
-      setGeneratedAudio(`${CLOUD_API_BASE}${audioPath}`);
+      setGeneratedAudio(`${CLOUD_API_BASE}${response.data.audio_url}`);
       if (response.data.translated_text) setTranslatedText(response.data.translated_text);
     } catch (err) {
       console.error(err);
@@ -255,8 +291,6 @@ const Dashboard = ({ user: currentUser }) => {
 
   return (
     <div className="min-h-screen bg-verbatim-navy text-white font-sans selection:bg-verbatim-orange overflow-x-hidden relative">
-      
-      {/* --- AURORA BACKGROUND --- */}
       <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none">
           <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-verbatim-orange/20 rounded-full blur-[120px] animate-blob"></div>
           <div className="absolute top-[20%] right-[-10%] w-[400px] h-[400px] bg-purple-600/20 rounded-full blur-[120px] animate-blob animation-delay-2000"></div>
@@ -264,8 +298,6 @@ const Dashboard = ({ user: currentUser }) => {
       </div>
 
       <div className="relative z-10">
-
-        {/* --- DELETE MODAL --- */}
         {itemToDelete && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setItemToDelete(null)}></div>
@@ -274,7 +306,7 @@ const Dashboard = ({ user: currentUser }) => {
                   <div className="p-3 bg-red-500/20 rounded-full text-red-500"><AlertTriangle size={24} /></div>
                   <h3 className="text-xl font-bold text-white">Delete Project?</h3>
               </div>
-              <p className="text-gray-400 mb-6 text-sm">Are you sure you want to delete <span className="text-white font-bold">"{itemToDelete.filename}"</span>? This action cannot be undone.</p>
+              <p className="text-gray-400 mb-6 text-sm">Are you sure you want to delete <span className="text-white font-bold">"{itemToDelete.filename}"</span>?</p>
               <div className="flex gap-3">
                   <button onClick={() => setItemToDelete(null)} className="flex-1 py-3 bg-white/5 hover:bg-white/10 rounded-xl text-sm font-bold transition-colors">Cancel</button>
                   <button onClick={executeDelete} disabled={isDeleting} className="flex-1 py-3 bg-red-600 hover:bg-red-700 rounded-xl text-sm font-bold transition-colors flex items-center justify-center gap-2">
@@ -307,16 +339,12 @@ const Dashboard = ({ user: currentUser }) => {
               <button onClick={() => setShowHistory(true)} className="flex items-center gap-2 px-3 py-2 bg-white/5 hover:bg-white/10 rounded-lg border border-white/10 transition-all text-xs font-bold uppercase tracking-wider">
                   <History size={16} className="text-verbatim-orange"/> <span className="hidden sm:inline">History</span>
               </button>
-              <div className="flex items-center gap-2 px-3 py-2 bg-white/5 rounded-lg border border-white/10 animate-in fade-in">
-                  <div className="w-2 h-2 rounded-full animate-pulse bg-green-500"></div>
-                  <span className="text-[10px] md:text-xs font-bold text-gray-300 uppercase tracking-widest">Engine Online</span>
-              </div>
               <button onClick={handleLogout} className="p-2 text-gray-400 hover:text-red-400 transition-all hover:bg-white/5 rounded-lg"><LogOut size={20} /></button>
             </div>
           </div>
         </nav>
 
-          {showHistory && (
+        {showHistory && (
               <div className="fixed inset-0 z-[60]">
                   <div onClick={() => setShowHistory(false)} className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
                   <div className="absolute top-0 right-0 h-full w-full md:w-96 bg-verbatim-navy border-l border-white/10 z-[70] shadow-2xl p-6 overflow-y-auto">
@@ -347,8 +375,15 @@ const Dashboard = ({ user: currentUser }) => {
 
         <main className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-12 pt-48 md:pt-64 pb-40">
           <div className="glass-card rounded-3xl p-6 md:p-12 text-center mb-12 border border-white/5 shadow-2xl bg-gradient-to-b from-white/5 to-transparent bg-verbatim-navy/40">
-            <h2 className="text-2xl md:text-4xl font-black mb-4">Transform Your Media</h2>
+            <h2 className="text-2xl md:text-4xl font-black mb-8">Universal Content Input</h2>
             
+            {/* --- NEW: TABS FOR INPUT --- */}
+            <div className="flex justify-center gap-4 mb-8">
+                <button onClick={() => setActiveTab("file")} className={`px-6 py-3 rounded-full text-xs font-bold uppercase tracking-widest transition-all ${activeTab === 'file' ? 'bg-verbatim-orange text-white shadow-lg' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>File Upload</button>
+                <button onClick={() => setActiveTab("link")} className={`px-6 py-3 rounded-full text-xs font-bold uppercase tracking-widest transition-all ${activeTab === 'link' ? 'bg-verbatim-orange text-white shadow-lg' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>Video Link</button>
+                <button onClick={() => setActiveTab("text")} className={`px-6 py-3 rounded-full text-xs font-bold uppercase tracking-widest transition-all ${activeTab === 'text' ? 'bg-verbatim-orange text-white shadow-lg' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>Paste Text</button>
+            </div>
+
               {error && (
                 <div className="mb-8 p-6 bg-red-500/10 border border-red-500/30 rounded-2xl flex items-center gap-4 text-left mx-auto max-w-2xl">
                   <div className="p-3 bg-red-500/20 rounded-full text-red-500"><AlertCircle size={24} /></div>
@@ -357,27 +392,67 @@ const Dashboard = ({ user: currentUser }) => {
                 </div>
               )}
 
-            <p className="text-gray-400 mb-10 max-w-xl mx-auto text-base md:text-lg">Upload audio or video. Let Verbatim handle the heavy lifting.</p>
-            
-            <div onClick={() => fileInputRef.current.click()} className="group relative border-2 border-dashed border-verbatim-orange/20 hover:border-verbatim-orange/50 bg-white/5 rounded-3xl p-10 md:p-20 cursor-pointer transition-all duration-500 overflow-hidden">
-              <div className="absolute inset-0 bg-verbatim-orange/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-              <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="audio/*,video/*" className="hidden" />
-              <div className="flex flex-col items-center gap-6 relative z-10">
-                <div className="p-6 md:p-8 bg-verbatim-orange/10 rounded-full text-verbatim-orange group-hover:scale-110 group-hover:bg-verbatim-orange/20 transition-all duration-500 shadow-2xl">
-                  {selectedFile ? <FileAudio size={48} className="md:w-16 md:h-16" /> : <Upload size={48} className="md:w-16 md:h-16" />}
+            {/* --- TAB CONTENT: FILE UPLOAD --- */}
+            {activeTab === 'file' && (
+                <div onClick={() => fileInputRef.current.click()} className="group relative border-2 border-dashed border-verbatim-orange/20 hover:border-verbatim-orange/50 bg-white/5 rounded-3xl p-10 md:p-20 cursor-pointer transition-all duration-500 overflow-hidden">
+                <div className="absolute inset-0 bg-verbatim-orange/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="audio/*,video/*" className="hidden" />
+                <div className="flex flex-col items-center gap-6 relative z-10">
+                    <div className="p-6 md:p-8 bg-verbatim-orange/10 rounded-full text-verbatim-orange group-hover:scale-110 group-hover:bg-verbatim-orange/20 transition-all duration-500 shadow-2xl">
+                    {selectedFile ? <FileAudio size={48} className="md:w-16 md:h-16" /> : <Upload size={48} className="md:w-16 md:h-16" />}
+                    </div>
+                    <p className="text-xl md:text-3xl font-bold tracking-tight break-all">{selectedFile ? selectedFile.name : "Drop media here"}</p>
+                    <p className="text-xs md:text-sm text-gray-500 uppercase tracking-[0.2em] font-black">MP4 • MOV • MP3 • WAV</p>
                 </div>
-                <p className="text-xl md:text-3xl font-bold tracking-tight break-all">{selectedFile ? selectedFile.name : "Drop media here"}</p>
-                <p className="text-xs md:text-sm text-gray-500 uppercase tracking-[0.2em] font-black">MP4 • MOV • MP3 • WAV</p>
-              </div>
-            </div>
+                </div>
+            )}
 
-            {selectedFile && !isLoading && (
+            {/* --- TAB CONTENT: LINK INPUT --- */}
+            {activeTab === 'link' && (
+                 <div className="bg-white/5 rounded-3xl p-10 border border-white/10">
+                     <div className="flex flex-col items-center gap-6 max-w-2xl mx-auto">
+                         <div className="p-6 bg-blue-500/10 rounded-full text-blue-400 mb-4"><LinkIcon size={48} /></div>
+                         <h3 className="text-xl font-bold">Paste Video URL</h3>
+                         <input 
+                            type="text" 
+                            value={linkUrl}
+                            onChange={(e) => setLinkUrl(e.target.value)}
+                            placeholder="https://youtube.com/watch?v=..." 
+                            className="w-full bg-black/40 border border-white/20 rounded-xl p-4 text-white focus:border-verbatim-orange focus:outline-none"
+                         />
+                         <button onClick={handleLinkSubmit} disabled={isLoading || !linkUrl} className="w-full py-4 bg-verbatim-orange text-white font-bold rounded-xl hover:bg-orange-600 transition-all uppercase tracking-widest disabled:opacity-50">
+                             {isLoading ? "Downloading & Processing..." : "Process Link"}
+                         </button>
+                     </div>
+                 </div>
+            )}
+
+            {/* --- TAB CONTENT: TEXT INPUT --- */}
+            {activeTab === 'text' && (
+                 <div className="bg-white/5 rounded-3xl p-10 border border-white/10">
+                     <div className="flex flex-col items-center gap-6 max-w-3xl mx-auto">
+                         <div className="p-6 bg-purple-500/10 rounded-full text-purple-400 mb-4"><Edit3 size={48} /></div>
+                         <h3 className="text-xl font-bold">Paste Raw Text</h3>
+                         <textarea 
+                            value={rawText}
+                            onChange={(e) => setRawText(e.target.value)}
+                            placeholder="Paste your meeting notes, article, or messy text here..." 
+                            className="w-full h-64 bg-black/40 border border-white/20 rounded-xl p-4 text-white focus:border-verbatim-orange focus:outline-none resize-none"
+                         />
+                         <button onClick={handleTextSubmit} disabled={isLoading || !rawText} className="w-full py-4 bg-verbatim-orange text-white font-bold rounded-xl hover:bg-orange-600 transition-all uppercase tracking-widest disabled:opacity-50">
+                             {isLoading ? "Analyzing Text..." : "Generate Insights"}
+                         </button>
+                     </div>
+                 </div>
+            )}
+
+            {activeTab === 'file' && selectedFile && !isLoading && (
               <button onClick={(e) => handleUpload(e)} className="mt-10 w-full max-w-md py-4 md:py-5 bg-verbatim-orange text-white font-black text-lg rounded-2xl hover:bg-orange-600 transition-all shadow-2xl uppercase tracking-widest">
                 Start Cloud Transcription
               </button>
             )}
 
-            {isLoading && (
+            {isLoading && activeTab === 'file' && (
               <div className="mt-10 max-w-md mx-auto">
                 <div className="w-full bg-white/5 rounded-full h-4 overflow-hidden border border-white/10 p-1">
                   <div style={{width: `${(extractionStatus ? extractionProgress : uploadProgress) || 0}%`}} className="bg-gradient-to-r from-verbatim-orange to-pink-500 h-full rounded-full transition-all duration-300" />
@@ -400,15 +475,12 @@ const Dashboard = ({ user: currentUser }) => {
                       <div className="p-2 bg-verbatim-orange/20 rounded-lg"><Mic className="text-verbatim-orange" size={24} /></div>
                       <h3 className="text-xl md:text-2xl font-black">Smart Transcript</h3>
                   </div>
-                  {/* EDITABLE BUTTON: Saves the edited transcript */}
                   <button onClick={() => downloadText(`${processingResults.filename}_transcript.txt`, editTranscript)} className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-sm font-bold transition-all w-full md:w-auto justify-center"><Download size={16}/> Save TXT</button>
                 </div>
-                {/* EDITABLE TRANSCRIPT AREA */}
                 <textarea 
                     value={editTranscript}
                     onChange={(e) => setEditTranscript(e.target.value)}
                     className="w-full h-96 bg-black/40 p-6 md:p-8 rounded-2xl text-gray-300 leading-relaxed font-mono text-xs md:text-sm border border-white/5 scrollbar-thin scrollbar-thumb-verbatim-orange resize-y focus:outline-none focus:border-verbatim-orange/50 transition-colors"
-                    placeholder="Transcript will appear here..."
                 />
               </div>
 
@@ -416,30 +488,24 @@ const Dashboard = ({ user: currentUser }) => {
                 <div className="glass-card p-6 md:p-8 rounded-2xl h-full flex flex-col border border-white/10 bg-white/[0.02]">
                   <div className="flex items-center justify-between mb-4">
                       <h3 className="text-lg md:text-xl font-bold text-white flex items-center gap-2"><AlignLeft className="text-verbatim-orange" /> Summary</h3>
-                      {/* EDITABLE BUTTON: Saves the edited summary */}
                       <button onClick={() => downloadText(`${processingResults.filename}_summary.txt`, editSummary)} className="p-2 bg-white/10 hover:bg-white/20 rounded-lg transition-all"><Download size={16}/></button>
                   </div>
-                  {/* EDITABLE SUMMARY AREA */}
                   <textarea 
                       value={editSummary}
                       onChange={(e) => setEditSummary(e.target.value)}
                       className="w-full h-[400px] md:h-[500px] bg-transparent text-gray-300 leading-relaxed resize-none focus:outline-none focus:ring-0 border-none scrollbar-thin scrollbar-thumb-verbatim-orange/30 text-base md:text-lg"
-                      placeholder="Summary will appear here..."
                   />
                 </div>
                 
                 <div className="glass-card p-6 md:p-8 rounded-2xl h-full flex flex-col border border-white/10 bg-white/[0.02]">
                   <div className="flex items-center justify-between mb-4">
                       <h3 className="text-lg md:text-xl font-bold text-white flex items-center gap-2"><FileText className="text-verbatim-orange" /> Blog Post</h3>
-                      {/* EDITABLE BUTTON: Saves the edited blog */}
                       <button onClick={() => downloadText(`${processingResults.filename}_blog.txt`, editBlog)} className="p-2 bg-white/10 hover:bg-white/20 rounded-lg transition-all"><Download size={16}/></button>
                   </div>
-                  {/* EDITABLE BLOG AREA */}
                   <textarea 
                       value={editBlog}
                       onChange={(e) => setEditBlog(e.target.value)}
                       className="w-full h-[400px] md:h-[500px] bg-transparent text-gray-300 leading-relaxed resize-none focus:outline-none focus:ring-0 border-none scrollbar-thin scrollbar-thumb-verbatim-orange/30 whitespace-pre-wrap"
-                      placeholder="Blog post will appear here..."
                   />
                 </div>
               </div>
@@ -549,12 +615,10 @@ const Dashboard = ({ user: currentUser }) => {
             </div>
           )}
         </main>
-
-        {/* REFINED FLOATING ACTION BUTTON - Z-40 to prevent overlap */}
         <Link 
           to="/blog" 
           state={{ 
-            blogContent: editBlog, // FIX: Pass edited blog content to the Blog page
+            blogContent: editBlog, 
             blogTitle: processingResults ? `Insights: ${processingResults.filename}` : "VBT Blog" 
           }}
           className="fixed bottom-6 right-6 z-40 group flex items-center gap-3 bg-verbatim-navy/95 backdrop-blur-xl border border-verbatim-orange/40 p-3 rounded-2xl shadow-2xl hover:border-verbatim-orange hover:bg-verbatim-orange transition-all duration-300 active:scale-95"
