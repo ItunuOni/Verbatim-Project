@@ -23,6 +23,10 @@ import edge_tts
 import yt_dlp 
 from pydantic import BaseModel
 
+# --- NEW: AUTO-INSTALL FFMPEG FOR RENDER ---
+import static_ffmpeg
+static_ffmpeg.add_paths()  # This adds ffmpeg to the system path automatically
+
 # --- 1. SETUP & CONFIG ---
 load_dotenv()
 
@@ -212,7 +216,7 @@ async def generate_audio(
         print(f"❌ Dubbing Error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-# --- FIXED LINK PROCESSOR (ANTI-BOT & NO FFMPEG) ---
+# --- ROBUST LINK PROCESSOR (WITH FFMPEG SUPPORT) ---
 @app.post("/api/process-link")
 async def process_link(request: LinkRequest):
     if not request.user_id: raise HTTPException(status_code=400, detail="User ID required.")
@@ -223,14 +227,16 @@ async def process_link(request: LinkRequest):
     print(f"🚀 Processing Link: {request.url}")
 
     try:
-        # 1. DOWNLOAD RAW AUDIO (No Conversion to avoid FFmpeg crash)
-        # We spoof the User-Agent to look like a real Chrome browser
+        # 1. DOWNLOAD AUDIO (IPv4 Enforced to avoid Blocks)
         ydl_opts = {
-            'format': 'bestaudio[ext=m4a]/bestaudio/best', # Prefer m4a (Gemini loves it)
+            'format': 'bestaudio/best', 
             'outtmpl': output_template + '.%(ext)s',
             'quiet': True,
             'no_warnings': True,
             'noplaylist': True,
+            'nocheckcertificate': True,
+            'ignoreerrors': True,
+            'source_address': '0.0.0.0', # Force IPv4
             'http_headers': {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
             }
@@ -239,18 +245,16 @@ async def process_link(request: LinkRequest):
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([request.url])
             
-        # 2. FIND THE FILE (Extension might vary)
-        # We use glob to find whatever yt-dlp downloaded (m4a, webm, mp3)
+        # 2. FIND THE FILE
         found_files = glob.glob(f"{output_template}.*")
         if not found_files:
-            raise Exception("Download failed - no file found on server.")
+            raise Exception("Download failed - no file found on server. Link might be private or blocked.")
         
         final_path = Path(found_files[0])
         print(f"✅ Downloaded: {final_path}")
 
         # 3. UPLOAD TO GEMINI
-        # Gemini handles m4a/mp3/webm natively.
-        media_file = genai.upload_file(path=str(final_path), mime_type="audio/mp4") # audio/mp4 covers m4a
+        media_file = genai.upload_file(path=str(final_path), mime_type="audio/mp3") 
         
         while media_file.state.name == "PROCESSING":
             time.sleep(2)
@@ -283,7 +287,6 @@ async def process_link(request: LinkRequest):
 
     except Exception as e:
         print(f"❌ Link Error: {e}")
-        # Return a cleaner error to the frontend
         raise HTTPException(status_code=500, detail=f"Link Processing Failed. {str(e)[:100]}")
 
 @app.post("/api/process-text")
@@ -305,7 +308,7 @@ async def process_text(request: TextRequest):
         response = retry_gemini_call(model, prompt)
         full_text = response.text
         
-        transcript = request.text # Preserve original
+        transcript = request.text 
         blog_post = full_text.split("Blog Post")[1].split("Summary")[0].strip() if "Blog Post" in full_text else ""
         summary = full_text.split("Summary")[1].strip() if "Summary" in full_text else ""
 
