@@ -22,12 +22,7 @@ from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import edge_tts
-import yt_dlp 
 from pydantic import BaseModel
-
-# --- AUTO-INSTALL FFMPEG FOR RENDER ---
-import static_ffmpeg
-static_ffmpeg.add_paths()
 
 # --- 1. SETUP & CONFIG ---
 load_dotenv()
@@ -93,51 +88,6 @@ def retry_gemini_call(model_instance, prompt_input, retries=3, delay=5):
             else:
                 raise e 
 
-# --- NEW: COBALT RELAY DOWNLOADER (The Anti-Block Fix) ---
-def download_via_relay(url, output_path):
-    print(f"⚠️ Primary Engine Blocked. Engaging Cobalt Relay for {url}...")
-    
-    # We try multiple public instances in case one is busy
-    instances = [
-        "https://co.wuk.sh/api/json",
-        "https://api.cobalt.tools/api/json",
-        "https://cobalt.steamcommunity.com/api/json" 
-    ]
-    
-    headers = {
-        "Accept": "application/json",
-        "Content-Type": "application/json"
-    }
-    
-    payload = {
-        "url": url,
-        "isAudioOnly": True,
-        "aFormat": "mp3"
-    }
-    
-    for instance in instances:
-        try:
-            print(f"🔄 Trying Relay Node: {instance}")
-            response = requests.post(instance, json=payload, headers=headers, timeout=20)
-            data = response.json()
-            
-            if "url" in data:
-                audio_stream_url = data["url"]
-                # Stream download the file
-                print("⬇️ Relay Success. Downloading Stream...")
-                with requests.get(audio_stream_url, stream=True) as r:
-                    r.raise_for_status()
-                    with open(output_path, 'wb') as f:
-                        for chunk in r.iter_content(chunk_size=8192):
-                            f.write(chunk)
-                print("✅ Relay Download Complete.")
-                return True
-        except Exception as e:
-            print(f"❌ Relay Node Failed: {e}")
-            continue
-            
-    return False
-
 # --- 2. GLOBAL VOICE DATABASE ---
 VOICE_DB = {
     "English (US)": [{"id": "en-US-GuyNeural", "name": "Guy (Male)"}, {"id": "en-US-JennyNeural", "name": "Jenny (Female)"}],
@@ -176,7 +126,6 @@ EMOTION_SETTINGS = {
 
 # --- 3. APP INITIALIZATION ---
 app = FastAPI()
-# FIXED: Removed duplicate 'allow_credentials' argument
 app.add_middleware(
     CORSMiddleware, 
     allow_origins=["*"], 
@@ -271,59 +220,81 @@ async def generate_audio(
         print(f"❌ Dubbing Error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-# --- ROBUST HYBRID LINK PROCESSOR ---
+# --- THE UNIVERSAL API-PROXY LINK PROCESSOR ---
 @app.post("/api/process-link")
 async def process_link(request: LinkRequest):
     if not request.user_id: raise HTTPException(status_code=400, detail="User ID required.")
     
-    unique_filename = f"link_extract_{uuid.uuid4()}"
-    output_template = str(TEMP_DIR / unique_filename)
-    final_path = None
+    # Generate filenames
+    unique_id = uuid.uuid4()
+    output_filename = f"social_{unique_id}.mp3"
+    output_path = TEMP_DIR / output_filename
     
-    print(f"🚀 Processing Link: {request.url}")
+    print(f"🚀 Processing Social Link via Proxy: {request.url}")
+
+    # --- THE MAGIC: LIST OF RELAY NODES ---
+    # We try these in order. If one fails, we move to the next.
+    # These are public Cobalt instances that do the heavy lifting for us.
+    relay_nodes = [
+        "https://co.wuk.sh/api/json",           # Reliable Primary
+        "https://api.cobalt.tools/api/json",    # Official
+        "https://cobalt.steamcommunity.com/api/json" # Backup
+    ]
+    
+    download_success = False
+    
+    # 1. ATTEMPT DOWNLOAD VIA RELAY
+    for node in relay_nodes:
+        if download_success: break
+        try:
+            print(f"🔄 Trying Node: {node}")
+            
+            headers = {"Accept": "application/json", "Content-Type": "application/json"}
+            payload = {
+                "url": request.url,
+                "aFormat": "mp3",
+                "isAudioOnly": True
+            }
+            
+            # Request the file location from the node
+            response = requests.post(node, json=payload, headers=headers, timeout=15)
+            data = response.json()
+            
+            if "url" in data:
+                stream_url = data["url"]
+                print(f"⬇️ Node Success. Downloading Stream...")
+                
+                # Download the actual file from the stream URL
+                with requests.get(stream_url, stream=True) as r:
+                    r.raise_for_status()
+                    with open(output_path, 'wb') as f:
+                        for chunk in r.iter_content(chunk_size=8192):
+                            f.write(chunk)
+                            
+                # Verify file size > 0
+                if output_path.stat().st_size > 0:
+                    download_success = True
+                    print("✅ File acquired successfully.")
+                
+        except Exception as e:
+            print(f"⚠️ Node Failed ({node}): {e}")
+            continue
+
+    if not download_success:
+        print("❌ All Proxy Nodes Failed.")
+        raise HTTPException(status_code=500, detail="Could not retrieve content. Link might be private, geo-locked, or unsupported.")
 
     try:
-        # ATTEMPT 1: YT-DLP (Internal Engine)
-        try:
-            ydl_opts = {
-                'format': 'bestaudio/best', 
-                'outtmpl': output_template + '.%(ext)s',
-                'quiet': True,
-                'no_warnings': True,
-                'noplaylist': True,
-                'nocheckcertificate': True,
-                'source_address': '0.0.0.0', # Force IPv4
-                'extractor_args': {'youtube': {'player_client': ['android', 'web']}},
-            }
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                ydl.download([request.url])
-            
-            found_files = glob.glob(f"{output_template}.*")
-            if found_files:
-                final_path = Path(found_files[0])
-                print(f"✅ Downloaded via yt-dlp: {final_path}")
-        except Exception as internal_err:
-            print(f"⚠️ Internal Engine Blocked: {internal_err}")
-            final_path = None
-
-        # ATTEMPT 2: COBALT RELAY (Fallback Engine)
-        if not final_path:
-            # We define a fallback path (e.g. mp3)
-            relay_output = Path(output_template + ".mp3")
-            success = download_via_relay(request.url, relay_output)
-            if success:
-                final_path = relay_output
-            else:
-                raise Exception("Both Internal Engine and Relay Failed. Link is likely private or geo-locked.")
-
-        # 3. UPLOAD TO GEMINI
-        media_file = genai.upload_file(path=str(final_path), mime_type="audio/mp3") 
+        # 2. UPLOAD TO GEMINI
+        print("📤 Uploading to AI Engine...")
+        media_file = genai.upload_file(path=str(output_path), mime_type="audio/mp3") 
         
         while media_file.state.name == "PROCESSING":
-            time.sleep(2)
+            time.sleep(1)
             media_file = genai.get_file(media_file.name)
             
-        # 4. ANALYZE
+        # 3. ANALYZE
+        print("🧠 Generating Insights...")
         response = retry_gemini_call(model, [
             media_file,
             "Provide: 1. Full Transcript (No timestamps). 2. Blog Post (500 words). 3. Summary (150 words). Format with headings: 'Transcript', 'Blog Post', 'Summary'."
@@ -335,8 +306,9 @@ async def process_link(request: LinkRequest):
         blog_post = full_text.split("Blog Post")[1].split("Summary")[0].strip() if "Blog Post" in full_text else ""
         summary = full_text.split("Summary")[1].strip() if "Summary" in full_text else ""
 
+        # 4. SAVE
         db.collection('users').document(request.user_id).collection('transcriptions').document().set({
-            "filename": f"Link: {request.url[:30]}...",
+            "filename": f"Social Link: {request.url[:30]}...",
             "upload_time": firestore.SERVER_TIMESTAMP,
             "transcript": clean_trans, 
             "blog_post": blog_post, 
@@ -344,15 +316,14 @@ async def process_link(request: LinkRequest):
         })
         
         # Cleanup
-        if final_path.exists(): os.remove(final_path)
+        if output_path.exists(): os.remove(output_path)
 
         return {"message": "Success", "transcript": clean_trans, "blog_post": blog_post, "summary": summary, "filename": "Web Link Asset"}
 
     except Exception as e:
-        print(f"❌ Link Error Detail: {e}")
-        raise HTTPException(status_code=500, detail=f"Engine Error: {str(e)}")
+        print(f"❌ AI/Database Error: {e}")
+        raise HTTPException(status_code=500, detail=f"Processing Error: {str(e)}")
 
-# --- FIXED TEXT PROCESSOR ---
 @app.post("/api/process-text")
 async def process_text(request: TextRequest):
     if not request.user_id: raise HTTPException(status_code=400, detail="User ID required.")
@@ -385,7 +356,6 @@ async def process_text(request: TextRequest):
         })
 
         return {"message": "Success", "transcript": transcript, "blog_post": blog_post, "summary": summary, "filename": "Text Analysis"}
-
     except Exception as e:
         print(f"❌ Text Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
