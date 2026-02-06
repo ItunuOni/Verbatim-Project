@@ -8,6 +8,7 @@ import gc
 import subprocess 
 import glob 
 import sys
+import requests  # NEW: REQUIRED FOR RELAY FALLBACK
 from pathlib import Path
 from typing import Annotated
 import datetime
@@ -24,9 +25,9 @@ import edge_tts
 import yt_dlp 
 from pydantic import BaseModel
 
-# --- NEW: AUTO-INSTALL FFMPEG FOR RENDER ---
+# --- AUTO-INSTALL FFMPEG FOR RENDER ---
 import static_ffmpeg
-static_ffmpeg.add_paths()  # Adds ffmpeg to system PATH
+static_ffmpeg.add_paths()
 
 # --- 1. SETUP & CONFIG ---
 load_dotenv()
@@ -92,13 +93,58 @@ def retry_gemini_call(model_instance, prompt_input, retries=3, delay=5):
             else:
                 raise e 
 
+# --- NEW: COBALT RELAY DOWNLOADER (The Anti-Block Fix) ---
+def download_via_relay(url, output_path):
+    print(f"⚠️ Primary Engine Blocked. Engaging Cobalt Relay for {url}...")
+    
+    # We try multiple public instances in case one is busy
+    instances = [
+        "https://co.wuk.sh/api/json",
+        "https://api.cobalt.tools/api/json",
+        "https://cobalt.steamcommunity.com/api/json" 
+    ]
+    
+    headers = {
+        "Accept": "application/json",
+        "Content-Type": "application/json"
+    }
+    
+    payload = {
+        "url": url,
+        "isAudioOnly": True,
+        "aFormat": "mp3"
+    }
+    
+    for instance in instances:
+        try:
+            print(f"🔄 Trying Relay Node: {instance}")
+            response = requests.post(instance, json=payload, headers=headers, timeout=20)
+            data = response.json()
+            
+            if "url" in data:
+                audio_stream_url = data["url"]
+                # Stream download the file
+                print("⬇️ Relay Success. Downloading Stream...")
+                with requests.get(audio_stream_url, stream=True) as r:
+                    r.raise_for_status()
+                    with open(output_path, 'wb') as f:
+                        for chunk in r.iter_content(chunk_size=8192):
+                            f.write(chunk)
+                print("✅ Relay Download Complete.")
+                return True
+        except Exception as e:
+            print(f"❌ Relay Node Failed: {e}")
+            continue
+            
+    return False
+
 # --- 2. GLOBAL VOICE DATABASE ---
 VOICE_DB = {
-    "English (US)": [{"id": "en-US-GuyNeural", "name": "Guy (Male)"}, {"id": "en-US-JennyNeural", "name": "Jenny (Female)"}, {"id": "en-US-AriaNeural", "name": "Aria (Female)"}, {"id": "en-US-ChristopherNeural", "name": "Christopher (Male)"}, {"id": "en-US-EricNeural", "name": "Eric (Male)"}],
+    "English (US)": [{"id": "en-US-GuyNeural", "name": "Guy (Male)"}, {"id": "en-US-JennyNeural", "name": "Jenny (Female)"}],
     "English (Nigeria)": [{"id": "en-NG-AbeoNeural", "name": "Abeo (Male)"}, {"id": "en-NG-EzinneNeural", "name": "Ezinne (Female)"}],
     "English (UK)": [{"id": "en-GB-SoniaNeural", "name": "Sonia (Female)"}, {"id": "en-GB-RyanNeural", "name": "Ryan (Male)"}],
     "French": [{"id": "fr-FR-VivienneNeural", "name": "Vivienne (Female)"}, {"id": "fr-FR-HenriNeural", "name": "Henri (Male)"}],
-    "Spanish": [{"id": "es-ES-ElviraNeural", "name": "Elvira (Female)"}, {"id": "es-ES-AlvaroNeural", "name": "Alvaro (Male)"}, {"id": "es-MX-DaliaNeural", "name": "Dalia (Mexico)"}],
+    "Spanish": [{"id": "es-ES-ElviraNeural", "name": "Elvira (Female)"}, {"id": "es-ES-AlvaroNeural", "name": "Alvaro (Male)"}],
     "German": [{"id": "de-DE-KatjaNeural", "name": "Katja (Female)"}, {"id": "de-DE-ConradNeural", "name": "Conrad (Male)"}],
     "Chinese (Mandarin)": [{"id": "zh-CN-XiaoxiaoNeural", "name": "Xiaoxiao (Female)"}, {"id": "zh-CN-YunxiNeural", "name": "Yunxi (Male)"}],
     "Japanese": [{"id": "ja-JP-NanamiNeural", "name": "Nanami (Female)"}, {"id": "ja-JP-KeitaNeural", "name": "Keita (Male)"}],
@@ -217,50 +263,50 @@ async def generate_audio(
         print(f"❌ Dubbing Error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-# --- ROBUST LINK PROCESSOR (ANDROID CLIENT BYPASS) ---
+# --- ROBUST HYBRID LINK PROCESSOR ---
 @app.post("/api/process-link")
 async def process_link(request: LinkRequest):
     if not request.user_id: raise HTTPException(status_code=400, detail="User ID required.")
     
     unique_filename = f"link_extract_{uuid.uuid4()}"
     output_template = str(TEMP_DIR / unique_filename)
+    final_path = None
     
     print(f"🚀 Processing Link: {request.url}")
 
     try:
-        # 1. DOWNLOAD AUDIO USING ANDROID CLIENT SPOOFING
-        # This is the "Magic Fix" for 403 Forbidden errors on Cloud Servers
-        ydl_opts = {
-            'format': 'bestaudio/best', 
-            'outtmpl': output_template + '.%(ext)s',
-            'quiet': False, # Enable logs for debugging
-            'no_warnings': False,
-            'noplaylist': True,
-            'nocheckcertificate': True,
-            'ignoreerrors': False,
-            # Force IPv4 to avoid IPv6 blocks
-            'source_address': '0.0.0.0', 
-            # THE SECRET SAUCE: Use Android Client API
-            'extractor_args': {
-                'youtube': {
-                    'player_client': ['android', 'web'],
-                }
-            },
-            'http_headers': {
-                'User-Agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Mobile Safari/537.36',
+        # ATTEMPT 1: YT-DLP (Internal Engine)
+        try:
+            ydl_opts = {
+                'format': 'bestaudio/best', 
+                'outtmpl': output_template + '.%(ext)s',
+                'quiet': True,
+                'no_warnings': True,
+                'noplaylist': True,
+                'nocheckcertificate': True,
+                'source_address': '0.0.0.0', # Force IPv4
+                'extractor_args': {'youtube': {'player_client': ['android', 'web']}},
             }
-        }
-        
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([request.url])
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                ydl.download([request.url])
             
-        # 2. FIND THE FILE
-        found_files = glob.glob(f"{output_template}.*")
-        if not found_files:
-            raise Exception("Download completed but file not found. Check server permissions.")
-        
-        final_path = Path(found_files[0])
-        print(f"✅ Downloaded: {final_path}")
+            found_files = glob.glob(f"{output_template}.*")
+            if found_files:
+                final_path = Path(found_files[0])
+                print(f"✅ Downloaded via yt-dlp: {final_path}")
+        except Exception as internal_err:
+            print(f"⚠️ Internal Engine Blocked: {internal_err}")
+            final_path = None
+
+        # ATTEMPT 2: COBALT RELAY (Fallback Engine)
+        if not final_path:
+            # We define a fallback path (e.g. mp3)
+            relay_output = Path(output_template + ".mp3")
+            success = download_via_relay(request.url, relay_output)
+            if success:
+                final_path = relay_output
+            else:
+                raise Exception("Both Internal Engine and Relay Failed. Link is likely private or geo-locked.")
 
         # 3. UPLOAD TO GEMINI
         media_file = genai.upload_file(path=str(final_path), mime_type="audio/mp3") 
@@ -296,7 +342,6 @@ async def process_link(request: LinkRequest):
 
     except Exception as e:
         print(f"❌ Link Error Detail: {e}")
-        # Send the EXACT error to frontend so we can debug if it fails again
         raise HTTPException(status_code=500, detail=f"Engine Error: {str(e)}")
 
 @app.post("/api/process-text")
@@ -331,10 +376,6 @@ async def process_text(request: TextRequest):
         })
 
         return {"message": "Success", "transcript": transcript, "blog_post": blog_post, "summary": summary, "filename": "Text Analysis"}
-
-    except Exception as e:
-        print(f"❌ Text Error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/process-media")
 async def process_media(file: UploadFile, user_id: Annotated[str, Form()]):
