@@ -74,57 +74,44 @@ def retry_gemini_call(model_instance, prompt_input, retries=3, delay=5):
                 continue
             raise e
 
-# --- 2. MASSIVE GLOBAL VOICE DATABASE (50+ LANGUAGES) ---
+# --- 2. AUTHENTIC NEURAL VOICE DATABASE (HUMAN-LIKE) ---
+# NOTE: These are specific 'Neural' voices known for human-like prosody.
 VOICE_DB = {
+    # --- GLOBAL ENGLISH ---
     "English (US)": [{"id": "en-US-GuyNeural", "name": "Guy (Male)"}, {"id": "en-US-JennyNeural", "name": "Jenny (Female)"}, {"id": "en-US-AriaNeural", "name": "Aria (Female)"}, {"id": "en-US-ChristopherNeural", "name": "Christopher (Male)"}, {"id": "en-US-EricNeural", "name": "Eric (Male)"}],
     "English (UK)": [{"id": "en-GB-SoniaNeural", "name": "Sonia (Female)"}, {"id": "en-GB-RyanNeural", "name": "Ryan (Male)"}, {"id": "en-GB-LibbyNeural", "name": "Libby (Female)"}],
     "English (Nigeria)": [{"id": "en-NG-AbeoNeural", "name": "Abeo (Male)"}, {"id": "en-NG-EzinneNeural", "name": "Ezinne (Female)"}],
-    "English (Australia)": [{"id": "en-AU-NatashaNeural", "name": "Natasha (Female)"}, {"id": "en-AU-WilliamNeural", "name": "William (Male)"}],
-    "English (India)": [{"id": "en-IN-NeerjaNeural", "name": "Neerja (Female)"}, {"id": "en-IN-PrabhatNeural", "name": "Prabhat (Male)"}],
+    
+    # --- AFRICAN LANGUAGES (AUTHENTIC) ---
+    "Yoruba (Nigeria)": [{"id": "yo-NG-BunmiNeural", "name": "Bunmi (Female)"}, {"id": "yo-NG-ReleNeural", "name": "Rele (Male)"}],
+    "Hausa (Nigeria)": [{"id": "ha-NG-JamilaNeural", "name": "Jamila (Female)"}, {"id": "ha-NG-DanjumaNeural", "name": "Danjuma (Male)"}],
+    "Igbo (Nigeria)": [{"id": "ig-NG-EzuchiNeural", "name": "Ezuchi (Male)"}, {"id": "ig-NG-NgoziNeural", "name": "Ngozi (Female)"}],
+    "Swahili (Kenya)": [{"id": "sw-KE-ZuriNeural", "name": "Zuri (Female)"}, {"id": "sw-KE-RafikiNeural", "name": "Rafiki (Male)"}],
+    "Swahili (Tanzania)": [{"id": "sw-TZ-RehemaNeural", "name": "Rehema (Female)"}, {"id": "sw-TZ-DaudiNeural", "name": "Daudi (Male)"}],
+    "Zulu (South Africa)": [{"id": "zu-ZA-ThandoNeural", "name": "Thando (Female)"}, {"id": "zu-ZA-ThembaNeural", "name": "Themba (Male)"}],
+    "Afrikaans (South Africa)": [{"id": "af-ZA-AdriNeural", "name": "Adri (Female)"}, {"id": "af-ZA-WillemNeural", "name": "Willem (Male)"}],
+    "Amharic (Ethiopia)": [{"id": "am-ET-MekdesNeural", "name": "Mekdes (Female)"}, {"id": "am-ET-AmehaNeural", "name": "Ameha (Male)"}],
+    "Somali (Somalia)": [{"id": "so-SO-UbaxNeural", "name": "Ubax (Female)"}, {"id": "so-SO-MuuseNeural", "name": "Muuse (Male)"}],
+
+    # --- EUROPEAN & ASIAN LANGUAGES ---
     "French (France)": [{"id": "fr-FR-VivienneNeural", "name": "Vivienne (Female)"}, {"id": "fr-FR-HenriNeural", "name": "Henri (Male)"}],
-    "French (Canada)": [{"id": "fr-CA-SylvieNeural", "name": "Sylvie (Female)"}, {"id": "fr-CA-AntoineNeural", "name": "Antoine (Male)"}],
-    "French (Africa)": [{"id": "fr-FR-RemyMultilingualNeural", "name": "Remy (Male)"}],
     "Spanish (Spain)": [{"id": "es-ES-ElviraNeural", "name": "Elvira (Female)"}, {"id": "es-ES-AlvaroNeural", "name": "Alvaro (Male)"}],
     "Spanish (Mexico)": [{"id": "es-MX-DaliaNeural", "name": "Dalia (Female)"}, {"id": "es-MX-JorgeNeural", "name": "Jorge (Male)"}],
-    "Spanish (Argentina)": [{"id": "es-AR-ElenaNeural", "name": "Elena (Female)"}, {"id": "es-AR-TomasNeural", "name": "Tomas (Male)"}],
-    "Portuguese (Brazil)": [{"id": "pt-BR-FranciscaNeural", "name": "Francisca (Female)"}, {"id": "pt-BR-AntonioNeural", "name": "Antonio (Male)"}],
-    "Portuguese (Portugal)": [{"id": "pt-PT-RaquelNeural", "name": "Raquel (Female)"}, {"id": "pt-PT-DuarteNeural", "name": "Duarte (Male)"}],
     "German": [{"id": "de-DE-KatjaNeural", "name": "Katja (Female)"}, {"id": "de-DE-ConradNeural", "name": "Conrad (Male)"}],
+    "Portuguese (Brazil)": [{"id": "pt-BR-FranciscaNeural", "name": "Francisca (Female)"}, {"id": "pt-BR-AntonioNeural", "name": "Antonio (Male)"}],
     "Chinese (Mandarin)": [{"id": "zh-CN-XiaoxiaoNeural", "name": "Xiaoxiao (Female)"}, {"id": "zh-CN-YunxiNeural", "name": "Yunxi (Male)"}],
-    "Chinese (Cantonese)": [{"id": "zh-HK-HiuGaaiNeural", "name": "HiuGaai (Female)"}, {"id": "zh-HK-WanLungNeural", "name": "WanLung (Male)"}],
-    "Chinese (Taiwan)": [{"id": "zh-TW-HsiaoChenNeural", "name": "HsiaoChen (Female)"}, {"id": "zh-TW-YunJheNeural", "name": "YunJhe (Male)"}],
     "Japanese": [{"id": "ja-JP-NanamiNeural", "name": "Nanami (Female)"}, {"id": "ja-JP-KeitaNeural", "name": "Keita (Male)"}],
     "Korean": [{"id": "ko-KR-SunHiNeural", "name": "Sun-Hi (Female)"}, {"id": "ko-KR-InJoonNeural", "name": "In-Joon (Male)"}],
     "Russian": [{"id": "ru-RU-SvetlanaNeural", "name": "Svetlana (Female)"}, {"id": "ru-RU-DmitryNeural", "name": "Dmitry (Male)"}],
     "Hindi": [{"id": "hi-IN-SwaraNeural", "name": "Swara (Female)"}, {"id": "hi-IN-MadhurNeural", "name": "Madhur (Male)"}],
-    "Arabic": [{"id": "ar-SA-ZariyahNeural", "name": "Zariyah (Female)"}, {"id": "ar-SA-HamedNeural", "name": "Hamed (Male)"}],
+    "Arabic (Saudi Arabia)": [{"id": "ar-SA-ZariyahNeural", "name": "Zariyah (Female)"}, {"id": "ar-SA-HamedNeural", "name": "Hamed (Male)"}],
+    "Arabic (Egypt)": [{"id": "ar-EG-SalmaNeural", "name": "Salma (Female)"}, {"id": "ar-EG-ShakirNeural", "name": "Shakir (Male)"}],
     "Italian": [{"id": "it-IT-ElsaNeural", "name": "Elsa (Female)"}, {"id": "it-IT-IsabellaNeural", "name": "Isabella (Female)"}],
     "Dutch": [{"id": "nl-NL-FennaNeural", "name": "Fenna (Female)"}, {"id": "nl-NL-MaartenNeural", "name": "Maarten (Male)"}],
     "Turkish": [{"id": "tr-TR-EmelNeural", "name": "Emel (Female)"}, {"id": "tr-TR-AhmetNeural", "name": "Ahmet (Male)"}],
     "Polish": [{"id": "pl-PL-ZofiaNeural", "name": "Zofia (Female)"}, {"id": "pl-PL-MarekNeural", "name": "Marek (Male)"}],
     "Swedish": [{"id": "sv-SE-SofieNeural", "name": "Sofie (Female)"}, {"id": "sv-SE-MattiasNeural", "name": "Mattias (Male)"}],
-    "Indonesian": [{"id": "id-ID-GadisNeural", "name": "Gadis (Female)"}, {"id": "id-ID-ArdiNeural", "name": "Ardi (Male)"}],
-    "Filipino": [{"id": "fil-PH-BlessicaNeural", "name": "Blessica (Female)"}, {"id": "fil-PH-AngeloNeural", "name": "Angelo (Male)"}],
-    "Malay": [{"id": "ms-MY-YasminNeural", "name": "Yasmin (Female)"}, {"id": "ms-MY-OsmanNeural", "name": "Osman (Male)"}],
-    "Thai": [{"id": "th-TH-PremwadeeNeural", "name": "Premwadee (Female)"}, {"id": "th-TH-NiwatNeural", "name": "Niwat (Male)"}],
-    "Vietnamese": [{"id": "vi-VN-HoaiMyNeural", "name": "HoaiMy (Female)"}, {"id": "vi-VN-NamMinhNeural", "name": "NamMinh (Male)"}],
-    "Greek": [{"id": "el-GR-AthinaNeural", "name": "Athina (Female)"}, {"id": "el-GR-NestorasNeural", "name": "Nestoras (Male)"}],
-    "Czech": [{"id": "cs-CZ-VlastaNeural", "name": "Vlasta (Female)"}, {"id": "cs-CZ-AntoninNeural", "name": "Antonin (Male)"}],
-    "Danish": [{"id": "da-DK-ChristelNeural", "name": "Christel (Female)"}, {"id": "da-DK-JeppeNeural", "name": "Jeppe (Male)"}],
-    "Finnish": [{"id": "fi-FI-NooraNeural", "name": "Noora (Female)"}, {"id": "fi-FI-HarriNeural", "name": "Harri (Male)"}],
-    "Hungarian": [{"id": "hu-HU-NoemiNeural", "name": "Noemi (Female)"}, {"id": "hu-HU-TamasNeural", "name": "Tamas (Male)"}],
-    "Norwegian": [{"id": "nb-NO-PernilleNeural", "name": "Pernille (Female)"}, {"id": "nb-NO-FinnNeural", "name": "Finn (Male)"}],
-    "Romanian": [{"id": "ro-RO-AlinaNeural", "name": "Alina (Female)"}, {"id": "ro-RO-EmilNeural", "name": "Emil (Male)"}],
-    "Slovak": [{"id": "sk-SK-ViktoriaNeural", "name": "Viktoria (Female)"}, {"id": "sk-SK-LukasNeural", "name": "Lukas (Male)"}],
-    "Ukrainian": [{"id": "uk-UA-PolinaNeural", "name": "Polina (Female)"}, {"id": "uk-UA-OstapNeural", "name": "Ostap (Male)"}],
-    "Swahili": [{"id": "sw-KE-ZuriNeural", "name": "Zuri (Female)"}, {"id": "sw-TZ-RehemaNeural", "name": "Rehema (Female)"}],
-    "Zulu": [{"id": "zu-ZA-ThandoNeural", "name": "Thando (Female)"}, {"id": "zu-ZA-ThembaNeural", "name": "Themba (Male)"}],
-    "Afrikaans": [{"id": "af-ZA-AdriNeural", "name": "Adri (Female)"}, {"id": "af-ZA-WillemNeural", "name": "Willem (Male)"}],
-    "Amharic": [{"id": "am-ET-MekdesNeural", "name": "Mekdes (Female)"}, {"id": "am-ET-AmehaNeural", "name": "Ameha (Male)"}],
-    "Yoruba": [{"id": "en-NG-EzinneNeural", "name": "Ezinne (Yoruba Accent)"}], 
-    "Bengali": [{"id": "bn-IN-TanishaaNeural", "name": "Tanishaa (Female)"}, {"id": "bn-IN-BashkarNeural", "name": "Bashkar (Male)"}],
-    "Tamil": [{"id": "ta-IN-PallaviNeural", "name": "Pallavi (Female)"}, {"id": "ta-IN-ValluvarNeural", "name": "Valluvar (Male)"}],
-    "Telugu": [{"id": "te-IN-ShrutiNeural", "name": "Shruti (Female)"}, {"id": "te-IN-MohanNeural", "name": "Mohan (Male)"}]
+    "Indonesian": [{"id": "id-ID-GadisNeural", "name": "Gadis (Female)"}, {"id": "id-ID-ArdiNeural", "name": "Ardi (Male)"}]
 }
 
 EMOTION_SETTINGS = {
