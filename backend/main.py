@@ -7,6 +7,8 @@ import time
 import gc   
 import subprocess 
 import sys
+import requests
+import base64
 from pathlib import Path
 from typing import Annotated
 import datetime
@@ -53,7 +55,8 @@ except Exception as e:
     print(f"❌ Firebase Error: {e}")
 
 # --- AI ENGINE CONFIG ---
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+genai.configure(api_key=GEMINI_API_KEY)
 MODEL_NAME = "gemini-flash-latest"
 model = genai.GenerativeModel(MODEL_NAME)
 
@@ -74,44 +77,31 @@ def retry_gemini_call(model_instance, prompt_input, retries=3, delay=5):
                 continue
             raise e
 
-# --- 2. AUTHENTIC NEURAL VOICE DATABASE (HUMAN-LIKE) ---
-# NOTE: These are specific 'Neural' voices known for human-like prosody.
+# --- 2. HYBRID VOICE DATABASE ---
+# EDGE-TTS (Free) for Global Languages
+# GOOGLE TTS (Paid/API) for Authentic African Languages
 VOICE_DB = {
-    # --- GLOBAL ENGLISH ---
-    "English (US)": [{"id": "en-US-GuyNeural", "name": "Guy (Male)"}, {"id": "en-US-JennyNeural", "name": "Jenny (Female)"}, {"id": "en-US-AriaNeural", "name": "Aria (Female)"}, {"id": "en-US-ChristopherNeural", "name": "Christopher (Male)"}, {"id": "en-US-EricNeural", "name": "Eric (Male)"}],
-    "English (UK)": [{"id": "en-GB-SoniaNeural", "name": "Sonia (Female)"}, {"id": "en-GB-RyanNeural", "name": "Ryan (Male)"}, {"id": "en-GB-LibbyNeural", "name": "Libby (Female)"}],
-    "English (Nigeria)": [{"id": "en-NG-AbeoNeural", "name": "Abeo (Male)"}, {"id": "en-NG-EzinneNeural", "name": "Ezinne (Female)"}],
+    # --- AFRICAN LANGUAGES (POWERED BY GOOGLE CLOUD) ---
+    "Yoruba (Nigeria)": [{"id": "yo-NG-Standard-A", "name": "Bunmi (Native Yoruba)", "engine": "google"}],
+    "Igbo (Nigeria)": [{"id": "ig-NG-Standard-A", "name": "Ngozi (Native Igbo)", "engine": "google"}],
+    "Hausa (Nigeria)": [{"id": "ha-NG-Standard-A", "name": "Danjuma (Native Hausa)", "engine": "google"}],
     
-    # --- AFRICAN LANGUAGES (AUTHENTIC) ---
-    "Yoruba (Nigeria)": [{"id": "yo-NG-BunmiNeural", "name": "Bunmi (Female)"}, {"id": "yo-NG-ReleNeural", "name": "Rele (Male)"}],
-    "Hausa (Nigeria)": [{"id": "ha-NG-JamilaNeural", "name": "Jamila (Female)"}, {"id": "ha-NG-DanjumaNeural", "name": "Danjuma (Male)"}],
-    "Igbo (Nigeria)": [{"id": "ig-NG-EzuchiNeural", "name": "Ezuchi (Male)"}, {"id": "ig-NG-NgoziNeural", "name": "Ngozi (Female)"}],
-    "Swahili (Kenya)": [{"id": "sw-KE-ZuriNeural", "name": "Zuri (Female)"}, {"id": "sw-KE-RafikiNeural", "name": "Rafiki (Male)"}],
-    "Swahili (Tanzania)": [{"id": "sw-TZ-RehemaNeural", "name": "Rehema (Female)"}, {"id": "sw-TZ-DaudiNeural", "name": "Daudi (Male)"}],
-    "Zulu (South Africa)": [{"id": "zu-ZA-ThandoNeural", "name": "Thando (Female)"}, {"id": "zu-ZA-ThembaNeural", "name": "Themba (Male)"}],
-    "Afrikaans (South Africa)": [{"id": "af-ZA-AdriNeural", "name": "Adri (Female)"}, {"id": "af-ZA-WillemNeural", "name": "Willem (Male)"}],
-    "Amharic (Ethiopia)": [{"id": "am-ET-MekdesNeural", "name": "Mekdes (Female)"}, {"id": "am-ET-AmehaNeural", "name": "Ameha (Male)"}],
-    "Somali (Somalia)": [{"id": "so-SO-UbaxNeural", "name": "Ubax (Female)"}, {"id": "so-SO-MuuseNeural", "name": "Muuse (Male)"}],
-
-    # --- EUROPEAN & ASIAN LANGUAGES ---
-    "French (France)": [{"id": "fr-FR-VivienneNeural", "name": "Vivienne (Female)"}, {"id": "fr-FR-HenriNeural", "name": "Henri (Male)"}],
-    "Spanish (Spain)": [{"id": "es-ES-ElviraNeural", "name": "Elvira (Female)"}, {"id": "es-ES-AlvaroNeural", "name": "Alvaro (Male)"}],
-    "Spanish (Mexico)": [{"id": "es-MX-DaliaNeural", "name": "Dalia (Female)"}, {"id": "es-MX-JorgeNeural", "name": "Jorge (Male)"}],
-    "German": [{"id": "de-DE-KatjaNeural", "name": "Katja (Female)"}, {"id": "de-DE-ConradNeural", "name": "Conrad (Male)"}],
-    "Portuguese (Brazil)": [{"id": "pt-BR-FranciscaNeural", "name": "Francisca (Female)"}, {"id": "pt-BR-AntonioNeural", "name": "Antonio (Male)"}],
-    "Chinese (Mandarin)": [{"id": "zh-CN-XiaoxiaoNeural", "name": "Xiaoxiao (Female)"}, {"id": "zh-CN-YunxiNeural", "name": "Yunxi (Male)"}],
-    "Japanese": [{"id": "ja-JP-NanamiNeural", "name": "Nanami (Female)"}, {"id": "ja-JP-KeitaNeural", "name": "Keita (Male)"}],
-    "Korean": [{"id": "ko-KR-SunHiNeural", "name": "Sun-Hi (Female)"}, {"id": "ko-KR-InJoonNeural", "name": "In-Joon (Male)"}],
-    "Russian": [{"id": "ru-RU-SvetlanaNeural", "name": "Svetlana (Female)"}, {"id": "ru-RU-DmitryNeural", "name": "Dmitry (Male)"}],
-    "Hindi": [{"id": "hi-IN-SwaraNeural", "name": "Swara (Female)"}, {"id": "hi-IN-MadhurNeural", "name": "Madhur (Male)"}],
-    "Arabic (Saudi Arabia)": [{"id": "ar-SA-ZariyahNeural", "name": "Zariyah (Female)"}, {"id": "ar-SA-HamedNeural", "name": "Hamed (Male)"}],
-    "Arabic (Egypt)": [{"id": "ar-EG-SalmaNeural", "name": "Salma (Female)"}, {"id": "ar-EG-ShakirNeural", "name": "Shakir (Male)"}],
-    "Italian": [{"id": "it-IT-ElsaNeural", "name": "Elsa (Female)"}, {"id": "it-IT-IsabellaNeural", "name": "Isabella (Female)"}],
-    "Dutch": [{"id": "nl-NL-FennaNeural", "name": "Fenna (Female)"}, {"id": "nl-NL-MaartenNeural", "name": "Maarten (Male)"}],
-    "Turkish": [{"id": "tr-TR-EmelNeural", "name": "Emel (Female)"}, {"id": "tr-TR-AhmetNeural", "name": "Ahmet (Male)"}],
-    "Polish": [{"id": "pl-PL-ZofiaNeural", "name": "Zofia (Female)"}, {"id": "pl-PL-MarekNeural", "name": "Marek (Male)"}],
-    "Swedish": [{"id": "sv-SE-SofieNeural", "name": "Sofie (Female)"}, {"id": "sv-SE-MattiasNeural", "name": "Mattias (Male)"}],
-    "Indonesian": [{"id": "id-ID-GadisNeural", "name": "Gadis (Female)"}, {"id": "id-ID-ArdiNeural", "name": "Ardi (Male)"}]
+    # --- GLOBAL ENGLISH (EDGE TTS) ---
+    "English (US)": [{"id": "en-US-GuyNeural", "name": "Guy (Male)", "engine": "edge"}, {"id": "en-US-JennyNeural", "name": "Jenny (Female)", "engine": "edge"}],
+    "English (Nigeria)": [{"id": "en-NG-AbeoNeural", "name": "Abeo (Male)", "engine": "edge"}, {"id": "en-NG-EzinneNeural", "name": "Ezinne (Female)", "engine": "edge"}],
+    "English (UK)": [{"id": "en-GB-SoniaNeural", "name": "Sonia (Female)", "engine": "edge"}, {"id": "en-GB-RyanNeural", "name": "Ryan (Male)", "engine": "edge"}],
+    
+    # --- EUROPEAN & ASIAN (EDGE TTS) ---
+    "French (France)": [{"id": "fr-FR-VivienneNeural", "name": "Vivienne (Female)", "engine": "edge"}, {"id": "fr-FR-HenriNeural", "name": "Henri (Male)", "engine": "edge"}],
+    "Spanish (Spain)": [{"id": "es-ES-ElviraNeural", "name": "Elvira (Female)", "engine": "edge"}, {"id": "es-ES-AlvaroNeural", "name": "Alvaro (Male)", "engine": "edge"}],
+    "German": [{"id": "de-DE-KatjaNeural", "name": "Katja (Female)", "engine": "edge"}],
+    "Chinese (Mandarin)": [{"id": "zh-CN-XiaoxiaoNeural", "name": "Xiaoxiao (Female)", "engine": "edge"}],
+    "Japanese": [{"id": "ja-JP-NanamiNeural", "name": "Nanami (Female)", "engine": "edge"}],
+    "Korean": [{"id": "ko-KR-SunHiNeural", "name": "Sun-Hi (Female)", "engine": "edge"}],
+    "Russian": [{"id": "ru-RU-SvetlanaNeural", "name": "Svetlana (Female)", "engine": "edge"}],
+    "Hindi": [{"id": "hi-IN-SwaraNeural", "name": "Swara (Female)", "engine": "edge"}],
+    "Arabic": [{"id": "ar-SA-ZariyahNeural", "name": "Zariyah (Female)", "engine": "edge"}],
+    "Swahili": [{"id": "sw-KE-ZuriNeural", "name": "Zuri (Female)", "engine": "edge"}]
 }
 
 EMOTION_SETTINGS = {
@@ -145,18 +135,13 @@ class TextRequest(BaseModel):
 # --- 4. ENDPOINTS ---
 
 @app.get("/")
-def read_root():
-    return {"status": "Verbatim Engine Online", "Mode": "Global Launch"}
+def read_root(): return {"status": "Verbatim Engine Online", "Mode": "Hybrid Neural"}
 
 @app.get("/api/languages")
-def get_languages():
-    # Sort keys alphabetically for the frontend dropdown
-    return sorted(list(VOICE_DB.keys()))
+def get_languages(): return sorted(list(VOICE_DB.keys()))
 
 @app.get("/api/voices")
-def get_voices(language: str):
-    # Default to US English if language not found
-    return VOICE_DB.get(language, VOICE_DB.get("English (US)"))
+def get_voices(language: str): return VOICE_DB.get(language, VOICE_DB.get("English (US)"))
 
 @app.get("/api/history/{user_id}")
 def get_history(user_id: str):
@@ -175,6 +160,31 @@ def delete_history_item(user_id: str, doc_id: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+# --- GOOGLE CLOUD TTS ENGINE (FOR AUTHENTIC AFRICAN VOICES) ---
+async def generate_google_tts(text, voice_id, output_path):
+    url = f"https://texttospeech.googleapis.com/v1/text:synthesize?key={GEMINI_API_KEY}"
+    
+    # Extract language code from ID (e.g. "yo-NG-Standard-A" -> "yo-NG")
+    lang_code = "-".join(voice_id.split("-")[:2])
+    
+    payload = {
+        "input": {"text": text},
+        "voice": {"languageCode": lang_code, "name": voice_id},
+        "audioConfig": {"audioEncoding": "MP3"}
+    }
+    
+    response = requests.post(url, json=payload)
+    
+    if response.status_code == 200:
+        audio_content = response.json().get("audioContent")
+        if audio_content:
+            with open(output_path, "wb") as out:
+                out.write(base64.b64decode(audio_content))
+            return True
+    
+    print(f"❌ Google TTS Failed: {response.text}")
+    return False
+
 @app.post("/api/generate-audio")
 async def generate_audio(
     text: Annotated[str, Form()],
@@ -183,21 +193,41 @@ async def generate_audio(
     voice_id: Annotated[str, Form()]
 ):
     try:
-        # Translate first using Gemini
+        # 1. Translate
         translation_prompt = f"Translate the following text into {language}. Return ONLY the translation, no extra text:\n\n{text}"
         translation_response = retry_gemini_call(model, translation_prompt)
         translated_text = translation_response.text.strip()
-        
-        # Clean text for TTS engine
         tts_ready_text = clean_text_for_tts(translated_text)
-        settings = EMOTION_SETTINGS.get(emotion, EMOTION_SETTINGS["Neutral"])
         
         output_filename = f"dub_{uuid.uuid4()}.mp3"
         output_path = TEMP_DIR / output_filename
+        settings = EMOTION_SETTINGS.get(emotion, EMOTION_SETTINGS["Neutral"])
+
+        # 2. DETERMINE ENGINE
+        # Check if the selected voice is marked as 'google' or 'edge'
+        selected_voice_data = None
+        voices = VOICE_DB.get(language, [])
+        for v in voices:
+            if v["id"] == voice_id:
+                selected_voice_data = v
+                break
         
-        # Generate Audio
-        communicate = edge_tts.Communicate(tts_ready_text, voice_id, rate=settings["rate"], pitch=settings["pitch"])
-        await communicate.save(str(output_path))
+        engine = selected_voice_data.get("engine", "edge") if selected_voice_data else "edge"
+        
+        print(f"🎤 Generating with Engine: {engine.upper()} for {language}")
+
+        # 3. GENERATE
+        success = False
+        
+        if engine == "google":
+            success = await generate_google_tts(tts_ready_text, voice_id, output_path)
+            
+        # Fallback to Edge if Google fails or if engine is Edge
+        if not success:
+            if engine == "google": print("⚠️ Google Engine failed, falling back to Edge...")
+            communicate = edge_tts.Communicate(tts_ready_text, voice_id, rate=settings["rate"], pitch=settings["pitch"])
+            await communicate.save(str(output_path))
+        
         gc.collect()
         
         return {
@@ -208,13 +238,12 @@ async def generate_audio(
         }
     except Exception as e:
         print(f"❌ Dubbing Error: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Voice Generation Failed: {str(e)}")
 
 @app.post("/api/process-text")
 async def process_text(request: TextRequest):
     if not request.user_id: raise HTTPException(status_code=400, detail="User ID required.")
     
-    print("🚀 Processing Raw Text Input...")
     try:
         prompt = f"""
         Analyze the following text.
@@ -241,7 +270,7 @@ async def process_text(request: TextRequest):
             "summary": summary
         })
 
-        return {"message": "Success", "transcript": transcript, "blog_post": blog_post, "summary": summary, "filename": "Text Analysis"}
+        return {"message": "Success", "transcript": transcript, "blog_post": blog_post, "summary": summary}
     except Exception as e:
         print(f"❌ Text Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -262,25 +291,20 @@ async def process_media(file: UploadFile, user_id: Annotated[str, Form()]):
         path_to_upload = temp_filepath
         upload_mime_type = "audio/mp3" 
 
-        # --- TURBO EXTRACTION (KEEPING THIS FOR SPEED) ---
+        # --- TURBO EXTRACTION ---
         if file_extension in ['.mp4', '.mov', '.avi', '.mkv', '.webm']:
             audio_path = TEMP_DIR / f"{temp_filepath.stem}.mp3"
             print(f"🚀 Turbo Extraction: {file.filename}...")
-            
-            # Extract Mono, 16kHz audio for fastest AI processing
             command = [
                 "ffmpeg", "-i", str(temp_filepath), 
                 "-vn", "-ac", "1", "-ar", "16000", "-b:a", "32k", 
                 "-y", str(audio_path)
             ]
             result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            
             if result.returncode == 0:
-                print("✅ Extraction Complete.")
                 path_to_upload = audio_path
                 files_to_cleanup.append(audio_path)
             else:
-                print(f"⚠️ FFmpeg failed: {result.stderr}, using raw file.")
                 upload_mime_type = "video/mp4"
 
         elif file_extension == ".wav":
