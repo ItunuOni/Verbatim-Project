@@ -23,7 +23,6 @@ import edge_tts
 from pydantic import BaseModel
 
 # --- AUTO-INSTALL FFMPEG ---
-# Essential for processing uploaded video files
 import static_ffmpeg
 static_ffmpeg.add_paths()
 
@@ -33,46 +32,37 @@ load_dotenv()
 current_dir = os.path.dirname(os.path.abspath(__file__))
 key_path = os.path.join(current_dir, "serviceAccountKey.json")
 
-# --- ROBUST FIREBASE INITIALIZATION ---
+# --- FIREBASE INIT ---
 try:
     if not firebase_admin._apps:
         cred = None
         if os.getenv("FIREBASE_SERVICE_KEY"):
-            print("✅ Loading Firebase Key from Environment Variable...")
+            print("✅ Loading Firebase Key from Environment...")
             key_dict = json.loads(os.getenv("FIREBASE_SERVICE_KEY"))
             cred = credentials.Certificate(key_dict)
         elif os.path.exists(key_path):
             print("✅ Loading Firebase Key from File...")
             cred = credentials.Certificate(key_path)
-        else:
-            print("⚠️ WARNING: No Firebase Key found. Database saves will fail.")
         
         if cred:
             firebase_admin.initialize_app(cred)
-            print(f"✅ Verbatim Database: Active")
+            print(f"✅ Database: Active")
             
     db = firestore.client()
 except Exception as e:
     print(f"❌ Firebase Error: {e}")
 
-# --- AI ENGINE CONFIG ---
+# --- AI INIT ---
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 MODEL_NAME = "gemini-flash-latest"
 model = genai.GenerativeModel(MODEL_NAME)
 
 # --- HELPERS ---
 def clean_transcript(text):
-    clean_text = re.sub(r'\*\d+:\d+\s*-\s*\d+:\d+\*', '', text)
-    clean_text = re.sub(r'\[\d+:\d+\]', '', clean_text)
-    clean_text = re.sub(r'\s+', ' ', clean_text).strip()
-    return clean_text
+    return re.sub(r'\*\d+:\d+\s*-\s*\d+:\d+\*', '', text).strip()
 
 def clean_text_for_tts(text):
-    text = re.sub(r'#+\s*', '', text)
-    text = re.sub(r'\*+', '', text)
-    text = re.sub(r'_+', '', text)
-    text = re.sub(r'\s+', ' ', text).strip()
-    return text
+    return re.sub(r'[#*_]+', '', text).strip()
 
 def retry_gemini_call(model_instance, prompt_input, retries=3, delay=5):
     for attempt in range(retries):
@@ -80,37 +70,18 @@ def retry_gemini_call(model_instance, prompt_input, retries=3, delay=5):
             return model_instance.generate_content(prompt_input)
         except Exception as e:
             if "429" in str(e) and attempt < retries - 1:
-                time.sleep(delay * (attempt + 1))
+                time.sleep(delay)
                 continue
             raise e
 
-# --- 2. GLOBAL VOICE DATABASE ---
-VOICE_DB = {
-    "English (US)": [{"id": "en-US-GuyNeural", "name": "Guy (Male)"}, {"id": "en-US-JennyNeural", "name": "Jenny (Female)"}],
-    "English (UK)": [{"id": "en-GB-SoniaNeural", "name": "Sonia (Female)"}, {"id": "en-GB-RyanNeural", "name": "Ryan (Male)"}],
-    "French": [{"id": "fr-FR-VivienneNeural", "name": "Vivienne (Female)"}, {"id": "fr-FR-HenriNeural", "name": "Henri (Male)"}],
-    "Spanish": [{"id": "es-ES-ElviraNeural", "name": "Elvira (Female)"}, {"id": "es-ES-AlvaroNeural", "name": "Alvaro (Male)"}],
-    # ... (Keep other languages if needed, stripped for brevity but safe to keep all)
-}
-
-EMOTION_SETTINGS = {
-    "Neutral": {"rate": "+0%", "pitch": "+0Hz"},
-    "Excited": {"rate": "+10%", "pitch": "+5Hz"},
-    "Sad": {"rate": "-10%", "pitch": "-5Hz"},
-    "Professional": {"rate": "-5%", "pitch": "-2Hz"},
-    "Fast": {"rate": "+25%", "pitch": "+0Hz"},
-    "Slow": {"rate": "-25%", "pitch": "+0Hz"}
-}
-
-# --- 3. APP INITIALIZATION ---
+# --- APP ---
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware, 
     allow_origins=["*"], 
     allow_credentials=True, 
     allow_methods=["*"], 
-    allow_headers=["*"], 
-    expose_headers=["*"]
+    allow_headers=["*"]
 )
 
 TEMP_DIR = Path("temp")
@@ -121,104 +92,58 @@ class TextRequest(BaseModel):
     text: str
     user_id: str
 
-# --- 4. ENDPOINTS ---
-
+# --- ENDPOINTS ---
 @app.get("/")
-def read_root():
-    return {"status": "Verbatim Engine Online", "Mode": "Stable Core"}
-
-@app.get("/api/languages")
-def get_languages():
-    return list(VOICE_DB.keys())
-
-@app.get("/api/voices")
-def get_voices(language: str):
-    return VOICE_DB.get(language, VOICE_DB.get("English (US)"))
+def read_root(): return {"status": "Online"}
 
 @app.get("/api/history/{user_id}")
 def get_history(user_id: str):
     try:
         docs = db.collection('users').document(user_id).collection('transcriptions').order_by("upload_time", direction=firestore.Query.DESCENDING).stream()
         return [{"id": doc.id, **doc.to_dict(), "upload_time": doc.to_dict().get("upload_time", "").isoformat() if doc.to_dict().get("upload_time") else ""} for doc in docs]
-    except Exception as e:
-        print(f"❌ History Fetch Error: {e}")
-        return []
+    except: return []
 
 @app.delete("/api/history/{user_id}/{doc_id}")
-def delete_history_item(user_id: str, doc_id: str):
-    try:
-        db.collection('users').document(user_id).collection('transcriptions').document(doc_id).delete()
-        return {"status": "deleted"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+def delete_history(user_id: str, doc_id: str):
+    db.collection('users').document(user_id).collection('transcriptions').document(doc_id).delete()
+    return {"status": "deleted"}
+
+@app.get("/api/languages")
+def get_languages(): return ["English (US)", "English (UK)", "Spanish", "French", "German", "Chinese", "Hindi", "Arabic"]
+
+@app.get("/api/voices")
+def get_voices(language: str): return [{"id": "en-US-GuyNeural", "name": "Guy"}, {"id": "en-US-JennyNeural", "name": "Jenny"}]
 
 @app.post("/api/generate-audio")
-async def generate_audio(
-    text: Annotated[str, Form()],
-    emotion: Annotated[str, Form()],
-    language: Annotated[str, Form()],
-    voice_id: Annotated[str, Form()]
-):
+async def generate_audio(text: Annotated[str, Form()], emotion: Annotated[str, Form()], language: Annotated[str, Form()], voice_id: Annotated[str, Form()]):
     try:
-        translation_prompt = f"Translate the following text into {language}. Return ONLY the translation, no extra text:\n\n{text}"
-        translation_response = retry_gemini_call(model, translation_prompt)
-        translated_text = translation_response.text.strip()
-        tts_ready_text = clean_text_for_tts(translated_text)
-        settings = EMOTION_SETTINGS.get(emotion, EMOTION_SETTINGS["Neutral"])
-        
-        output_filename = f"dub_{uuid.uuid4()}.mp3"
-        output_path = TEMP_DIR / output_filename
-        
-        communicate = edge_tts.Communicate(tts_ready_text, voice_id, rate=settings["rate"], pitch=settings["pitch"])
-        await communicate.save(str(output_path))
-        gc.collect()
-        
-        return {
-            "status": "success", 
-            "audio_url": f"/temp/{output_filename}", 
-            "translated_text": translated_text,
-            "language": language
-        }
+        resp = retry_gemini_call(model, f"Translate to {language}: {text}")
+        clean = clean_text_for_tts(resp.text)
+        name = f"dub_{uuid.uuid4()}.mp3"
+        await edge_tts.Communicate(clean, voice_id).save(str(TEMP_DIR / name))
+        return {"status": "success", "audio_url": f"/temp/{name}", "translated_text": resp.text}
     except Exception as e:
-        print(f"❌ Dubbing Error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/process-text")
 async def process_text(request: TextRequest):
-    if not request.user_id: raise HTTPException(status_code=400, detail="User ID required.")
-    
-    print("🚀 Processing Raw Text Input...")
+    if not request.user_id: raise HTTPException(status_code=400)
     try:
-        prompt = f"""
-        Analyze the following text.
-        1. Return the text exactly as provided under the heading 'Transcript'.
-        2. Write a Viral Blog Post (500 words) based on it under 'Blog Post'.
-        3. Write a Strategic Summary (150 words) under 'Summary'.
+        resp = retry_gemini_call(model, f"Analyze:\n{request.text[:30000]}\n\nOutput: 1. Transcript 2. Blog Post 3. Summary.")
+        full = resp.text
+        transcript = request.text
+        blog = full.split("Blog Post")[1].split("Summary")[0].strip() if "Blog Post" in full else ""
+        summary = full.split("Summary")[1].strip() if "Summary" in full else ""
         
-        TEXT INPUT:
-        {request.text[:100000]} 
-        """
-        
-        response = retry_gemini_call(model, prompt)
-        full_text = response.text
-        
-        transcript = request.text 
-        blog_post = full_text.split("Blog Post")[1].split("Summary")[0].strip() if "Blog Post" in full_text else ""
-        summary = full_text.split("Summary")[1].strip() if "Summary" in full_text else ""
-
         db.collection('users').document(request.user_id).collection('transcriptions').document().set({
-            "filename": f"Text Note: {datetime.datetime.now().strftime('%Y-%m-%d')}",
-            "upload_time": firestore.SERVER_TIMESTAMP,
-            "transcript": transcript, 
-            "blog_post": blog_post, 
-            "summary": summary
+            "filename": "Text Note", "upload_time": firestore.SERVER_TIMESTAMP,
+            "transcript": transcript, "blog_post": blog, "summary": summary
         })
-
-        return {"message": "Success", "transcript": transcript, "blog_post": blog_post, "summary": summary, "filename": "Text Analysis"}
+        return {"message": "Success", "transcript": transcript, "blog_post": blog, "summary": summary}
     except Exception as e:
-        print(f"❌ Text Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+# --- OPTIMIZED MEDIA PROCESSOR (TURBO MODE) ---
 @app.post("/api/process-media")
 async def process_media(file: UploadFile, user_id: Annotated[str, Form()]):
     if not user_id: raise HTTPException(status_code=400, detail="User ID required.")
@@ -229,39 +154,55 @@ async def process_media(file: UploadFile, user_id: Annotated[str, Form()]):
     files_to_cleanup = [temp_filepath]
 
     try:
+        # 1. Save Upload
         with open(temp_filepath, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
 
         path_to_upload = temp_filepath
         upload_mime_type = "audio/mp3" 
 
+        # 2. TURBO EXTRACTION (For Video Files)
         if file_extension in ['.mp4', '.mov', '.avi', '.mkv', '.webm']:
             audio_path = TEMP_DIR / f"{temp_filepath.stem}.mp3"
-            print(f"🚀 Starting Turbo Extraction for {file.filename}...")
-            command = ["ffmpeg", "-i", str(temp_filepath), "-vn", "-acodec", "libmp3lame", "-q:a", "4", "-y", str(audio_path)]
+            print(f"🚀 Turbo Extraction: {file.filename}...")
+            
+            # OPTIMIZATION: Extract MONO audio at 16kHz (Smallest possible size for AI)
+            command = [
+                "ffmpeg", "-i", str(temp_filepath), 
+                "-vn",              # No Video
+                "-ac", "1",         # Mono Channel (Faster)
+                "-ar", "16000",     # 16kHz Sample Rate (Speech Optimized)
+                "-b:a", "32k",      # 32k Bitrate (Tiny File Size)
+                "-y", str(audio_path)
+            ]
+            
             result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             
-            if result.returncode != 0:
-                print(f"⚠️ FFmpeg failed, falling back to raw upload. Error: {result.stderr}")
-                path_to_upload = temp_filepath
-                upload_mime_type = "video/mp4" 
-            else:
+            if result.returncode == 0:
+                print("✅ Extraction Complete.")
                 path_to_upload = audio_path
                 files_to_cleanup.append(audio_path)
-                upload_mime_type = "audio/mp3"
+            else:
+                print(f"⚠️ FFmpeg failed: {result.stderr}, falling back to raw.")
+                upload_mime_type = "video/mp4"
 
         elif file_extension == ".wav":
             upload_mime_type = "audio/wav"
         
+        # 3. Upload to Gemini
+        print("📤 Uploading to AI...")
         media_file = genai.upload_file(path=str(path_to_upload), mime_type=upload_mime_type)
         
+        # 4. Wait for AI Processing
         while media_file.state.name == "PROCESSING":
             time.sleep(2)
             media_file = genai.get_file(media_file.name)
             
+        # 5. Generate Content
+        print("🧠 Analyzing...")
         response = retry_gemini_call(model, [
             media_file,
-            "Provide: 1. Full Transcript (Do NOT include timestamps, timecodes, or speaker labels). 2. Blog Post (500 words). 3. Summary (150 words). Format with headings: 'Transcript', 'Blog Post', 'Summary'."
+            "Provide: 1. Full Transcript (No timestamps). 2. Blog Post (500 words). 3. Summary (150 words). Format with headings: 'Transcript', 'Blog Post', 'Summary'."
         ])
 
         full_text = response.text
@@ -270,6 +211,7 @@ async def process_media(file: UploadFile, user_id: Annotated[str, Form()]):
         blog_post = full_text.split("Blog Post")[1].split("Summary")[0].strip() if "Blog Post" in full_text else ""
         summary = full_text.split("Summary")[1].strip() if "Summary" in full_text else ""
 
+        # 6. Save Data
         db.collection('users').document(user_id).collection('transcriptions').document().set({
             "filename": file.filename,
             "upload_time": firestore.SERVER_TIMESTAMP,
@@ -281,10 +223,7 @@ async def process_media(file: UploadFile, user_id: Annotated[str, Form()]):
         return {"message": "Success", "transcript": clean_trans, "blog_post": blog_post, "summary": summary}
 
     except Exception as e:
-        error_str = str(e)
-        print(f"❌ Processing Error: {error_str}")
-        if "429" in error_str:
-             raise HTTPException(status_code=429, detail="Engine Busy. Retrying... please wait a moment.")
+        print(f"❌ Processing Error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         for path in files_to_cleanup:

@@ -18,7 +18,6 @@ const Dashboard = ({ user: currentUser }) => {
   const [rawText, setRawText] = useState("");
 
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [extractionProgress, setExtractionProgress] = useState(0); 
   const [processingResults, setProcessingResults] = useState(null);
   
   const [editTranscript, setEditTranscript] = useState("");
@@ -105,7 +104,6 @@ const Dashboard = ({ user: currentUser }) => {
     if (file) {
       setSelectedFile(file);
       setUploadProgress(0);
-      setExtractionProgress(0); 
       setError(null);
       setExtractionStatus(""); 
     }
@@ -171,7 +169,6 @@ const Dashboard = ({ user: currentUser }) => {
     
     setIsLoading(true);
     setUploadProgress(0);
-    setExtractionProgress(0);
     setError(null);
     setExtractionStatus(""); 
     
@@ -179,21 +176,19 @@ const Dashboard = ({ user: currentUser }) => {
 
     try {
         if (selectedFile.type.startsWith('video/')) {
-            setExtractionStatus("Initializing Audio Extractor...");
+            setExtractionStatus("Extracting Audio (Turbo Mode)...");
             try {
+                // Client-side extraction attempt (optional, keeps UI responsive)
                 const audioFile = await extractAudio(selectedFile, (progress) => {
-                    setExtractionProgress(progress);
-                    setExtractionStatus(`Extracting Audio... ${progress}%`);
+                    setExtractionStatus(`Optimizing Media... ${progress}%`);
                 });
                 fileToUpload = audioFile; 
             } catch (extractErr) {
-                console.error("Fallback to raw upload:", extractErr);
-                setExtractionStatus("Extraction failed. Trying raw video upload...");
+                console.warn("Client extraction skipped, using server turbo mode.");
+                setExtractionStatus("Uploading for Server Processing...");
                 fileToUpload = selectedFile;
             }
         }
-
-        setExtractionStatus(null); 
 
         const formData = new FormData();
         formData.append("file", fileToUpload);
@@ -209,6 +204,7 @@ const Dashboard = ({ user: currentUser }) => {
                 const percent = Math.round((p.loaded * 100) / p.total);
                 setUploadProgress(percent);
             },
+            timeout: 600000 // <--- 10 MINUTE TIMEOUT FOR LARGE FILES
         });
 
         setProcessingResults(response.data);
@@ -219,12 +215,14 @@ const Dashboard = ({ user: currentUser }) => {
     } catch (err) {
         console.error(err);
         setExtractionStatus(""); 
-        let displayError = "Upload failed. Please try a smaller file or Audio-only.";
+        let displayError = "Upload failed. File might be too large for the free tier.";
         if (err.response) {
              if (err.response.status === 429) displayError = "Verbatim Engine Limit. Wait 60s.";
              else if (err.response.data && err.response.data.detail) {
                  displayError = err.response.data.detail;
              }
+        } else if (err.code === 'ECONNABORTED') {
+            displayError = "Processing Timeout. The file is being analyzed, check History in 2 mins.";
         }
         setError(displayError);
     } finally {
@@ -567,7 +565,7 @@ const Dashboard = ({ user: currentUser }) => {
                         </div>
                         <audio controls src={generatedAudio} className="w-full mb-8 h-12" autoPlay />
                         
-                        {/* --- DOWNLOAD BUTTON --- */}
+                        {/* --- FIXED: DOWNLOAD BUTTON VISIBLE --- */}
                         <div className="flex justify-end mb-6">
                             <button 
                                 onClick={handleDownloadAudio}
