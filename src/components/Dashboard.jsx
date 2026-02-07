@@ -8,7 +8,8 @@ import {
 import { Link } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import { auth } from '../firebase';
-import { extractAudio } from '../utils/audioExtractor';
+// REMOVED: extractAudio to prevent mobile crashes
+// import { extractAudio } from '../utils/audioExtractor'; 
 
 const CLOUD_API_BASE = "https://verbatim-backend.onrender.com";
 
@@ -64,9 +65,21 @@ const Dashboard = ({ user: currentUser }) => {
     if (currentUser?.uid) fetchHistory();
   }, [currentUser]);
 
+  // --- NEW: CLEANER FUNCTION FOR TIMESTAMPS ---
+  const cleanTextArtifacts = (text) => {
+    if (!text) return "";
+    return text
+      .replace(/\[?\d{1,2}:\d{2}(:\d{2})?\]?/g, '') // Removes 00:00, [00:00], 00:00:00
+      .replace(/\*?\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}\*?/g, '') // Removes 00:00 - 00:10
+      .replace(/(?:Frame|Time)\s*\d+/gi, '') // Removes "Frame 200"
+      .replace(/\s+/g, ' ') // Collapses extra spaces
+      .trim();
+  };
+
   useEffect(() => {
     if (processingResults) {
-        setEditTranscript(processingResults.transcript || "");
+        // Apply cleaning immediately when results arrive
+        setEditTranscript(cleanTextArtifacts(processingResults.transcript || ""));
         setEditSummary(processingResults.summary || "");
         setEditBlog(processingResults.blog_post || "");
     }
@@ -170,30 +183,20 @@ const Dashboard = ({ user: currentUser }) => {
     setIsLoading(true);
     setUploadProgress(0);
     setError(null);
-    setExtractionStatus(""); 
+    setExtractionStatus("Initializing secure upload..."); 
     
-    let fileToUpload = selectedFile;
+    // --- MOBILE CRASH FIX: REMOVED CLIENT-SIDE EXTRACTION ---
+    // We now send the raw file directly to the server.
+    // The server's new Turbo Mode handles the heavy lifting.
+    const fileToUpload = selectedFile; 
 
     try {
-        if (selectedFile.type.startsWith('video/')) {
-            setExtractionStatus("Extracting Audio (Turbo Mode)...");
-            try {
-                // Client-side extraction attempt (optional, keeps UI responsive)
-                const audioFile = await extractAudio(selectedFile, (progress) => {
-                    setExtractionStatus(`Optimizing Media... ${progress}%`);
-                });
-                fileToUpload = audioFile; 
-            } catch (extractErr) {
-                console.warn("Client extraction skipped, using server turbo mode.");
-                setExtractionStatus("Uploading for Server Processing...");
-                fileToUpload = selectedFile;
-            }
-        }
-
         const formData = new FormData();
         formData.append("file", fileToUpload);
         formData.append("user_id", currentUser.uid);
         formData.append("original_filename", selectedFile.name); 
+
+        setExtractionStatus("Uploading to Neural Cloud...");
 
         const response = await axios({
             method: 'post',
@@ -203,8 +206,9 @@ const Dashboard = ({ user: currentUser }) => {
             onUploadProgress: (p) => {
                 const percent = Math.round((p.loaded * 100) / p.total);
                 setUploadProgress(percent);
+                if (percent === 100) setExtractionStatus("AI Engine: Analyzing Content...");
             },
-            timeout: 600000 // <--- 10 MINUTE TIMEOUT FOR LARGE FILES
+            timeout: 600000 // 10 Minutes timeout for large files
         });
 
         setProcessingResults(response.data);
@@ -215,14 +219,14 @@ const Dashboard = ({ user: currentUser }) => {
     } catch (err) {
         console.error(err);
         setExtractionStatus(""); 
-        let displayError = "Upload failed. File might be too large for the free tier.";
+        let displayError = "Upload failed. Please check your connection.";
         if (err.response) {
-             if (err.response.status === 429) displayError = "Verbatim Engine Limit. Wait 60s.";
+             if (err.response.status === 429) displayError = "Server Busy. Please wait 1 minute.";
              else if (err.response.data && err.response.data.detail) {
                  displayError = err.response.data.detail;
              }
         } else if (err.code === 'ECONNABORTED') {
-            displayError = "Processing Timeout. The file is being analyzed, check History in 2 mins.";
+            displayError = "Timeout: The file is still processing. Check your History tab in a few minutes.";
         }
         setError(displayError);
     } finally {
@@ -251,7 +255,8 @@ const Dashboard = ({ user: currentUser }) => {
       if (response.data.translated_text) setTranslatedText(response.data.translated_text);
     } catch (err) {
       console.error(err);
-      setStudioError("Voice generation failed.");
+      const msg = err.response?.data?.detail || "Voice generation failed.";
+      setStudioError(msg);
     } finally {
       setIsVoiceLoading(false);
     }
@@ -427,7 +432,7 @@ const Dashboard = ({ user: currentUser }) => {
             {isLoading && activeTab === 'file' && (
               <div className="mt-10 max-w-md mx-auto">
                 <div className="w-full bg-white/5 rounded-full h-4 overflow-hidden border border-white/10 p-1">
-                  <div style={{width: `${(extractionStatus ? extractionProgress : uploadProgress) || 0}%`}} className="bg-gradient-to-r from-verbatim-orange to-pink-500 h-full rounded-full transition-all duration-300" />
+                  <div style={{width: `${uploadProgress || 0}%`}} className="bg-gradient-to-r from-verbatim-orange to-pink-500 h-full rounded-full transition-all duration-300" />
                 </div>
                 <div className="flex justify-between items-center mt-4">
                   <p className="text-xs md:text-sm font-black text-verbatim-orange uppercase tracking-[0.2em] animate-pulse">

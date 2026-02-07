@@ -64,9 +64,14 @@ genai.configure(api_key=GEMINI_API_KEY)
 MODEL_NAME = "gemini-2.5-flash" 
 model = genai.GenerativeModel(MODEL_NAME)
 
-# --- HELPERS ---
+# --- HELPERS (IMPROVED CLEANER) ---
 def clean_transcript(text):
-    return re.sub(r'\*\d+:\d+\s*-\s*\d+:\d+\*', '', text).strip()
+    # Aggressive Timestamp Removal
+    text = re.sub(r'\[?\d{1,2}:\d{2}(?::\d{2})?\]?', '', text) # 00:00 or [00:00]
+    text = re.sub(r'\*?\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}\*?', '', text) # 00:00 - 00:10
+    text = re.sub(r'\*\d+:\d+\s*-\s*\d+:\d+\*', '', text) # Bold timestamps
+    text = re.sub(r'Frame\s+\d+', '', text, flags=re.IGNORECASE) # "Frame 200"
+    return re.sub(r'\s+', ' ', text).strip() # Clean extra spaces
 
 def clean_text_for_tts(text):
     return re.sub(r'[#*_]+', '', text).strip()
