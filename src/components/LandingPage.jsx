@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowRight, Mic, Globe, Zap, Volume2, Layers, Radio } from 'lucide-react';
+import { ArrowRight, Mic, Globe, Zap, Volume2, Layers, Radio, Lock, Link as LinkIcon, Activity } from 'lucide-react';
 import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import { auth } from '../firebase';
 
@@ -25,160 +25,150 @@ const LandingPage = () => {
   );
 
   return (
-    <div className="min-h-screen bg-verbatim-navy text-white font-sans selection:bg-verbatim-orange selection:text-white overflow-x-hidden relative">
+    <div className="min-h-screen bg-verbatim-navy text-white font-sans selection:bg-verbatim-orange selection:text-white overflow-x-hidden relative perspective-1000">
       
+      {/* 3D ATMOSPHERE */}
       <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-verbatim-orange/20 rounded-full blur-[120px] animate-blob"></div>
-          <div className="absolute top-[20%] right-[-10%] w-[400px] h-[400px] bg-purple-600/20 rounded-full blur-[120px] animate-blob animation-delay-2000"></div>
-          <div className="absolute bottom-[-10%] left-[20%] w-[600px] h-[600px] bg-blue-600/10 rounded-full blur-[120px] animate-blob animation-delay-4000"></div>
+          <div className="absolute top-[-10%] left-[-10%] w-[600px] h-[600px] bg-verbatim-orange/20 rounded-full blur-[150px] animate-blob"></div>
+          <div className="absolute top-[20%] right-[-10%] w-[500px] h-[500px] bg-purple-600/20 rounded-full blur-[150px] animate-blob animation-delay-2000"></div>
+          <div className="absolute bottom-[-10%] left-[20%] w-[700px] h-[700px] bg-blue-600/10 rounded-full blur-[150px] animate-blob animation-delay-4000"></div>
       </div>
 
       <div className="relative z-10">
-        <nav className="glass fixed w-full z-50 top-0 left-0 border-b border-white/10 backdrop-blur-xl">
+        <nav className="fixed w-full z-50 top-0 left-0 border-b border-white/5 backdrop-blur-xl bg-verbatim-navy/30">
           <div className="max-w-7xl mx-auto px-6 h-auto py-4 flex flex-col sm:flex-row justify-between items-center gap-4 sm:gap-0">
             <div className="flex items-center gap-4 sm:gap-6 group cursor-pointer" onClick={() => window.scrollTo({top: 0, behavior: 'smooth'})}>
-              <div className="relative flex items-center justify-center">
-                <div className="absolute -inset-4 bg-gradient-to-tr from-verbatim-orange to-pink-500 rounded-2xl blur-md opacity-0 group-hover:opacity-100 transition-all duration-500 shadow-[0_0_20px_rgba(255,77,0,0.4)]"></div>
-                <img src={LOGO_PATH} alt="Verbatim Logo" className="relative h-16 sm:h-24 w-auto min-w-[100px] sm:min-w-[140px] rounded-xl border-2 border-verbatim-orange bg-white p-1 transform group-hover:scale-110 transition-all duration-300 z-10 shadow-2xl object-contain" />
+              <div className="relative flex items-center justify-center perspective-500">
+                <div className="absolute -inset-4 bg-gradient-to-tr from-verbatim-orange to-pink-500 rounded-2xl blur-md opacity-0 group-hover:opacity-100 transition-all duration-500 shadow-[0_0_30px_rgba(255,77,0,0.5)]"></div>
+                <img src={LOGO_PATH} alt="Verbatim Logo" className="relative h-16 sm:h-20 w-auto rounded-xl border border-verbatim-orange/50 bg-black/50 p-1 transform group-hover:rotate-y-12 transition-all duration-500 z-10 shadow-2xl object-contain backdrop-blur-sm" />
               </div>
               <div className="flex flex-col -space-y-1">
-                <span className="text-2xl sm:text-3xl font-black tracking-tighter italic group-hover:text-verbatim-orange transition-colors duration-300">VERBATIM</span>
-                <span className="text-[10px] sm:text-[11px] font-bold tracking-[0.3em] text-verbatim-orange opacity-90 uppercase">Transcription Pro</span>
+                <span className="text-2xl sm:text-3xl font-black tracking-tighter italic bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400 group-hover:from-verbatim-orange group-hover:to-pink-500 transition-all duration-300">VERBATIM</span>
+                <span className="text-[10px] sm:text-[11px] font-bold tracking-[0.3em] text-verbatim-orange uppercase shadow-orange-glow">Transcription Pro</span>
               </div>
             </div>
-            <button onClick={handleGoogleLogin} className="w-full sm:w-auto px-6 py-3 bg-white text-gray-800 font-bold rounded-full hover:bg-gray-100 transition-all shadow-lg hover:scale-105 active:scale-95 flex items-center justify-center gap-2 border border-gray-300">
+            <button onClick={handleGoogleLogin} className="w-full sm:w-auto px-6 py-3 bg-white text-gray-900 font-bold rounded-full hover:bg-gray-200 transition-all shadow-[0_0_20px_rgba(255,255,255,0.3)] hover:scale-105 active:scale-95 flex items-center justify-center gap-2 border border-gray-300">
               <GoogleLogo />
               <span>Login with Google</span>
             </button>
           </div>
         </nav>
 
-        <header className="relative pt-48 sm:pt-64 pb-20 px-6 overflow-hidden">
-          <div className="max-w-5xl mx-auto text-center relative z-10">
-            <div>
-              <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-verbatim-orange/10 text-verbatim-orange border border-verbatim-orange/20 text-sm font-bold mb-8 uppercase tracking-wider">
-                <span className="w-2 h-2 rounded-full bg-verbatim-orange animate-pulse"></span>
-                v1.0 Released Globally
+        <header className="relative pt-48 sm:pt-64 pb-32 px-6 overflow-hidden perspective-1000">
+          <div className="max-w-6xl mx-auto text-center relative z-10 transform-style-3d">
+            <div className="animate-fade-in-up">
+              <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-verbatim-orange/10 text-verbatim-orange border border-verbatim-orange/20 text-xs font-bold mb-8 uppercase tracking-[0.2em] hover:bg-verbatim-orange/20 transition-colors cursor-default">
+                <span className="w-2 h-2 rounded-full bg-verbatim-orange animate-ping"></span>
+                v1.0 Engine Live
               </span>
-              <h1 className="text-5xl md:text-8xl font-extrabold mb-8 leading-tight md:leading-tighter tracking-tight">
-                Speak Locally. <br />
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-white via-verbatim-orange to-orange-400">Resonate Globally.</span>
+              <h1 className="text-6xl md:text-9xl font-black mb-8 leading-[0.85] tracking-tighter transform hover:scale-[1.02] transition-transform duration-700 cursor-default">
+                <span className="block text-white drop-shadow-[0_10px_10px_rgba(0,0,0,0.5)]">Speak Locally.</span>
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-verbatim-orange via-pink-500 to-purple-500 drop-shadow-[0_0_30px_rgba(255,77,0,0.4)]">Resonate Globally.</span>
               </h1>
-              <p className="text-xl md:text-2xl text-verbatim-light mb-12 max-w-3xl mx-auto leading-relaxed font-light">
-                The world's most powerful localization engine now running in the cloud. Turn raw media into polished, multi-format assets that break every language barrier.
+              <p className="text-xl md:text-2xl text-gray-300 mb-12 max-w-3xl mx-auto leading-relaxed font-light tracking-wide">
+                Turn raw media into polished assets. <span className="text-white font-bold">Transcription, Translation, and AI Dubbing</span> running on a cloud-native engine.
               </p>
               <div className="flex flex-col sm:flex-row items-center justify-center gap-6">
-                <button onClick={handleGoogleLogin} className="w-full sm:w-auto px-8 py-4 bg-verbatim-orange text-white font-bold rounded-full hover:bg-orange-600 transition-all flex items-center justify-center gap-3 text-lg shadow-[0_0_40px_rgba(255,77,0,0.3)] hover:scale-105">
-                  Get Started ASAP <ArrowRight size={24} />
+                <button onClick={handleGoogleLogin} className="group relative w-full sm:w-auto px-10 py-5 bg-verbatim-orange text-white font-black rounded-full hover:bg-orange-600 transition-all flex items-center justify-center gap-3 text-lg shadow-[0_0_50px_rgba(255,77,0,0.4)] hover:shadow-[0_0_80px_rgba(255,77,0,0.6)] hover:-translate-y-1">
+                  <div className="absolute inset-0 rounded-full border border-white/20"></div>
+                  Launch Studio <ArrowRight size={24} className="group-hover:translate-x-1 transition-transform"/>
                 </button>
               </div>
             </div>
           </div>
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-verbatim-orange/15 rounded-full blur-[150px] -z-10 animate-pulse"></div>
         </header>
 
-        <section className="py-20 px-6 bg-black/20 backdrop-blur-sm">
+        {/* --- 3D FEATURE GRID --- */}
+        <section className="py-24 px-6 bg-black/20 backdrop-blur-sm border-t border-white/5">
           <div className="max-w-7xl mx-auto">
-            <div className="text-center mb-16">
-              <h2 className="text-3xl md:text-4xl font-bold mb-4">Everything You Need to Go Global</h2>
-              <p className="text-verbatim-light text-lg">From raw audio & video to emotional AI dubbing in minutes.</p>
+            <div className="text-center mb-20">
+              <h2 className="text-3xl md:text-5xl font-black mb-6 tracking-tight">Everything You Need</h2>
+              <p className="text-gray-400 text-lg">Powerful tools built for the modern creator economy.</p>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              {[
-                { icon: <Mic size={32} />, title: "Precision Transcription", desc: "Convert speech to text with 99% accuracy using Verbatim v1.0." },
-                { icon: <Globe size={32} />, title: "50+ Languages", desc: "Instantly translate your content into Spanish, French, Hindi, and more." },
-                { icon: <Volume2 size={32} />, title: "Emotional AI Voiceovers", desc: "Generate human-like speech with controllable emotions." },
-                { icon: <Layers size={32} />, title: "Multi-Format Output", desc: "Get Blog Posts and Summaries automatically generated." },
-                { icon: <Zap size={32} />, title: "Video-to-Audio", desc: "Smart extraction engine processes video files at 40x speed." },
-                { icon: <Radio size={32} />, title: "Live Transcription", desc: "Coming in v2.0: Real-time speech-to-text for live broadcasts.", isComingSoon: true }
-              ].map((feature, i) => (
-                <div key={i} className={`glass-card p-8 rounded-2xl border border-white/5 hover:border-verbatim-orange/50 transition-all relative overflow-hidden bg-verbatim-navy/40 ${feature.isComingSoon ? 'opacity-80' : ''}`}>
-                  {feature.isComingSoon && (
-                    <div className="absolute top-4 right-4 bg-verbatim-orange/20 text-verbatim-orange text-[10px] font-bold px-3 py-1 rounded-full border border-verbatim-orange/30">COMING SOON</div>
-                  )}
-                  <div className="mb-6 text-verbatim-orange">{feature.icon}</div>
-                  <h3 className="text-xl font-bold mb-3">{feature.title}</h3>
-                  <p className="text-verbatim-light leading-relaxed text-sm">{feature.desc}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 perspective-1000">
+              {/* Feature 1 */}
+              <div className="group glass-card p-10 rounded-3xl border border-white/5 hover:border-verbatim-orange/50 transition-all duration-500 bg-verbatim-navy/40 transform hover:-translate-y-2 hover:rotate-x-2 shadow-2xl">
+                <div className="mb-8 p-4 bg-verbatim-orange/10 w-fit rounded-2xl text-verbatim-orange group-hover:scale-110 transition-transform duration-500"><Mic size={40} /></div>
+                <h3 className="text-2xl font-bold mb-4 group-hover:text-verbatim-orange transition-colors">Precision Transcription</h3>
+                <p className="text-gray-400 leading-relaxed">Convert speech to text with 99% accuracy. Our engine understands accents, dialects, and technical jargon.</p>
+              </div>
 
-        <section className="py-24 px-6 border-t border-white/5 relative overflow-hidden">
-          <div className="max-w-7xl mx-auto">
-            <div className="text-center mb-16">
-              <h2 className="text-3xl md:text-5xl font-black mb-6">The Verbatim Advantage</h2>
-              <p className="text-verbatim-light text-lg max-w-2xl mx-auto">Designed to break the conventional boundaries of content creation through three core pillars.</p>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              <div className="glass-card p-8 rounded-3xl border border-white/5 hover:border-verbatim-orange/30 transition-all group bg-verbatim-navy/40">
-                <div className="mb-6 bg-verbatim-orange/10 w-14 h-14 rounded-xl flex items-center justify-center text-verbatim-orange"><Layers size={28} /></div>
-                <h3 className="text-2xl font-bold mb-3">Hyper-Scalability</h3>
-                <h4 className="text-sm font-bold text-verbatim-orange uppercase tracking-wider mb-4">The "One-to-Many" Engine</h4>
-                <p className="text-gray-400 leading-relaxed text-sm">Create a "Content Flywheel". Upload one piece of content (e.g., a 10-minute video) and automatically generate four distinct formats. A single input yields exponential output.</p>
+              {/* Feature 2 */}
+              <div className="group glass-card p-10 rounded-3xl border border-white/5 hover:border-blue-500/50 transition-all duration-500 bg-verbatim-navy/40 transform hover:-translate-y-2 hover:rotate-x-2 shadow-2xl">
+                <div className="mb-8 p-4 bg-blue-500/10 w-fit rounded-2xl text-blue-400 group-hover:scale-110 transition-transform duration-500"><Globe size={40} /></div>
+                <h3 className="text-2xl font-bold mb-4 group-hover:text-blue-400 transition-colors">Global Localization</h3>
+                <p className="text-gray-400 leading-relaxed">Break the language barrier. Instantly translate and dub your content into 50+ languages with native-level fluency.</p>
               </div>
-              <div className="glass-card p-8 rounded-3xl border border-white/5 hover:border-verbatim-orange/30 transition-all group bg-verbatim-navy/40">
-                  <div className="mb-6 bg-blue-500/10 w-14 h-14 rounded-xl flex items-center justify-center text-blue-400"><Globe size={28} /></div>
-                <h3 className="text-2xl font-bold mb-3">Global Liquidity</h3>
-                <h4 className="text-sm font-bold text-blue-400 uppercase tracking-wider mb-4">The Babel Protocol</h4>
-                <p className="text-gray-400 leading-relaxed text-sm">Language Agnostic. The Localization Studio dubs audio with emotional intelligence. An educational lecture recorded in Lagos can be consumed in Madrid or Paris within minutes.</p>
-              </div>
-              <div className="glass-card p-8 rounded-3xl border border-white/5 hover:border-verbatim-orange/30 transition-all group bg-verbatim-navy/40">
-                  <div className="mb-6 bg-green-500/10 w-14 h-14 rounded-xl flex items-center justify-center text-green-400"><Zap size={28} /></div>
-                <h3 className="text-2xl font-bold mb-3">Enterprise Compliance</h3>
-                <h4 className="text-sm font-bold text-green-400 uppercase tracking-wider mb-4">Intelligent Brand Safety</h4>
-                <p className="text-gray-400 leading-relaxed text-sm">Unlike reckless AI tools, Verbatim includes a "Brand Safety" layer. It detects copyrighted Hollywood material (e.g., movies) and blocks processing to protect you from legal liability.</p>
+
+              {/* Feature 3 */}
+              <div className="group glass-card p-10 rounded-3xl border border-white/5 hover:border-purple-500/50 transition-all duration-500 bg-verbatim-navy/40 transform hover:-translate-y-2 hover:rotate-x-2 shadow-2xl">
+                <div className="mb-8 p-4 bg-purple-500/10 w-fit rounded-2xl text-purple-400 group-hover:scale-110 transition-transform duration-500"><Layers size={40} /></div>
+                <h3 className="text-2xl font-bold mb-4 group-hover:text-purple-400 transition-colors">Multi-Format Output</h3>
+                <p className="text-gray-400 leading-relaxed">One upload, infinite assets. Get viral Blog Posts, Summaries, and Action Items generated automatically.</p>
               </div>
             </div>
           </div>
         </section>
 
-        <section className="py-24 px-6 bg-black/30 backdrop-blur-sm">
-          <div className="max-w-7xl mx-auto">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+        {/* --- THE VAULT (COMING SOON) --- */}
+        <section className="py-32 px-6 relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-b from-black/0 via-verbatim-orange/5 to-black/0"></div>
+          <div className="max-w-7xl mx-auto relative z-10">
+            <div className="flex flex-col md:flex-row items-end justify-between mb-16 gap-6">
               <div>
-                <span className="text-verbatim-orange font-bold tracking-widest uppercase text-sm mb-2 block">Strategic Impact</span>
-                <h2 className="text-4xl md:text-5xl font-black mb-8 leading-tight">Unlock "Zombie Data" &<br/> Scale Your Voice.</h2>
-                <div className="space-y-8">
-                  <div className="flex gap-4 group">
-                    <div className="mt-1 p-2 bg-white/5 rounded-lg h-fit group-hover:bg-verbatim-orange/20 transition-colors"><Mic className="text-verbatim-orange" size={20}/></div>
-                    <div>
-                      <h4 className="text-xl font-bold text-white">Content Creators & Influencers</h4>
-                      <p className="text-gray-400 mt-2 text-sm leading-relaxed">
-                        <strong>Problem:</strong> High effort to repurpose content.<br/>
-                        <strong>Solution:</strong> Upload a voice note. Instantly receive a Viral Blog Post written in your voice. Reduces production time by 90%.
-                      </p>
-                    </div>
+                <span className="text-verbatim-orange font-bold tracking-[0.3em] uppercase text-xs mb-4 block">The Roadmap</span>
+                <h2 className="text-4xl md:text-6xl font-black leading-none">Verbatim <span className="text-transparent bg-clip-text bg-gradient-to-r from-verbatim-orange to-white">2.0</span></h2>
+              </div>
+              <div className="px-6 py-3 rounded-full border border-white/10 bg-white/5 backdrop-blur-md text-sm font-bold text-gray-400">
+                🚀 Constructing the Future
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              {/* Locked Feature 1 */}
+              <div className="relative group p-1 rounded-3xl bg-gradient-to-br from-white/10 to-transparent">
+                <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px] z-20 rounded-3xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-500">
+                  <div className="bg-black/80 px-6 py-3 rounded-full border border-verbatim-orange/50 text-verbatim-orange font-bold tracking-widest uppercase text-xs flex items-center gap-2 shadow-[0_0_30px_rgba(255,77,0,0.3)]">
+                    <Lock size={14} /> Locked // Dev in Progress
                   </div>
-                  <div className="flex gap-4 group">
-                    <div className="mt-1 p-2 bg-white/5 rounded-lg h-fit group-hover:bg-blue-500/20 transition-colors"><Layers className="text-blue-400" size={20}/></div>
-                    <div>
-                      <h4 className="text-xl font-bold text-white">Enterprise & Corporate</h4>
-                      <p className="text-gray-400 mt-2 text-sm leading-relaxed">
-                        <strong>Problem:</strong> Thousands of hours of unwatchable "Zombie Data" (Zoom recordings).<br/>
-                        <strong>Solution:</strong> Generate Executive Summaries and Action Item Lists. Localize training videos at zero cost.
-                      </p>
-                    </div>
+                </div>
+                <div className="h-full bg-verbatim-navy p-10 rounded-[22px] relative overflow-hidden">
+                  <div className="absolute top-0 right-0 p-6 opacity-10"><LinkIcon size={120} /></div>
+                  <div className="mb-8 p-4 bg-gray-800 w-fit rounded-2xl text-gray-400"><LinkIcon size={32} /></div>
+                  <h3 className="text-2xl font-bold mb-2 text-gray-300">Social Link Intelligence</h3>
+                  <p className="text-gray-500 text-sm mb-6">Process URLs directly from YouTube, TikTok, and Instagram without file uploads.</p>
+                  <div className="w-full bg-gray-800 h-1.5 rounded-full overflow-hidden">
+                    <div className="w-[85%] h-full bg-verbatim-orange/50"></div>
                   </div>
-                  <div className="flex gap-4 group">
-                    <div className="mt-1 p-2 bg-white/5 rounded-lg h-fit group-hover:bg-green-500/20 transition-colors"><Globe className="text-green-400" size={20}/></div>
-                    <div>
-                      <h4 className="text-xl font-bold text-white">Education & Accessibility</h4>
-                      <p className="text-gray-400 mt-2 text-sm leading-relaxed">
-                        <strong>Problem:</strong> Lectures only available in one format.<br/>
-                        <strong>Solution:</strong> Total compliance with accessibility standards (WCAG). Provide transcripts for deaf students and dubbed audio for international students.
-                      </p>
-                    </div>
+                  <p className="text-right text-[10px] font-mono text-verbatim-orange mt-2">85% COMPLETE</p>
+                </div>
+              </div>
+
+              {/* Locked Feature 2 */}
+              <div className="relative group p-1 rounded-3xl bg-gradient-to-br from-white/10 to-transparent">
+                <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px] z-20 rounded-3xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-500">
+                  <div className="bg-black/80 px-6 py-3 rounded-full border border-purple-500/50 text-purple-400 font-bold tracking-widest uppercase text-xs flex items-center gap-2 shadow-[0_0_30px_rgba(168,85,247,0.3)]">
+                    <Lock size={14} /> Locked // Research Phase
                   </div>
+                </div>
+                <div className="h-full bg-verbatim-navy p-10 rounded-[22px] relative overflow-hidden">
+                  <div className="absolute top-0 right-0 p-6 opacity-10"><Activity size={120} /></div>
+                  <div className="mb-8 p-4 bg-gray-800 w-fit rounded-2xl text-gray-400"><Activity size={32} /></div>
+                  <h3 className="text-2xl font-bold mb-2 text-gray-300">Voice Cloning & Synthesis</h3>
+                  <p className="text-gray-500 text-sm mb-6">Train the AI on your own voice for personalized dubbing across 30+ languages.</p>
+                  <div className="w-full bg-gray-800 h-1.5 rounded-full overflow-hidden">
+                    <div className="w-[40%] h-full bg-purple-500/50"></div>
+                  </div>
+                  <p className="text-right text-[10px] font-mono text-purple-400 mt-2">40% COMPLETE</p>
                 </div>
               </div>
             </div>
           </div>
         </section>
 
-        <footer className="py-8 text-center text-verbatim-light border-t border-white/5 text-sm bg-black/40 backdrop-blur-md">
-          <p>© 2026 Verbatim. Built with Google Gemini API & React.</p>
+        <footer className="py-12 text-center text-gray-500 border-t border-white/5 text-xs bg-black/60 backdrop-blur-xl">
+          <p>© 2026 Verbatim. The future of content is universal.</p>
         </footer>
       </div>
     </div>

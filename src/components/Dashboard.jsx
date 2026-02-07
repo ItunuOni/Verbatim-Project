@@ -3,7 +3,7 @@ import axios from 'axios';
 import { 
   LogOut, Upload, FileAudio, CheckCircle, AlertCircle, Loader2, 
   FileText, AlignLeft, Mic, Globe, Play, Languages, User as UserIcon, Cpu, 
-  XCircle, History, Download, ChevronRight, X, Trash2, AlertTriangle, Link as LinkIcon, Edit3
+  XCircle, History, Download, ChevronRight, X, Trash2, AlertTriangle, Edit3
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
@@ -14,8 +14,7 @@ const CLOUD_API_BASE = "https://verbatim-backend.onrender.com";
 
 const Dashboard = ({ user: currentUser }) => {
   const [selectedFile, setSelectedFile] = useState(null);
-  const [activeTab, setActiveTab] = useState("file"); // "file", "link", "text"
-  const [linkUrl, setLinkUrl] = useState("");
+  const [activeTab, setActiveTab] = useState("file"); 
   const [rawText, setRawText] = useState("");
 
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -49,7 +48,7 @@ const Dashboard = ({ user: currentUser }) => {
   const [isVoiceLoading, setIsVoiceLoading] = useState(false);
   const [generatedAudio, setGeneratedAudio] = useState(null);
   const [translatedText, setTranslatedText] = useState(null);
-  const [isDownloading, setIsDownloading] = useState(false); // NEW: Download State
+  const [isDownloading, setIsDownloading] = useState(false); 
 
   useEffect(() => {
     axios.get(`${CLOUD_API_BASE}/api/languages`)
@@ -122,7 +121,6 @@ const Dashboard = ({ user: currentUser }) => {
     document.body.removeChild(element);
   };
 
-  // --- NEW: FORCE DOWNLOAD LOGIC ---
   const handleDownloadAudio = async () => {
     if (!generatedAudio) return;
     setIsDownloading(true);
@@ -143,34 +141,6 @@ const Dashboard = ({ user: currentUser }) => {
     } finally {
         setIsDownloading(false);
     }
-  };
-
-  const handleLinkSubmit = async () => {
-      if (!linkUrl || !currentUser) return;
-      setIsLoading(true);
-      setError(null);
-      setExtractionStatus("Connecting to Neural Relay...");
-      
-      try {
-          const response = await axios.post(
-              `${CLOUD_API_BASE}/api/process-link`, 
-              {
-                  url: linkUrl,
-                  user_id: currentUser.uid
-              },
-              { timeout: 300000 } // <--- CRITICAL: 5 MINUTE TIMEOUT FIX
-          );
-          setProcessingResults(response.data);
-          setExtractionStatus("");
-          fetchHistory();
-      } catch (err) {
-          console.error(err);
-          // Show meaningful error
-          const errorMsg = err.response?.data?.detail || "Connection timed out. The video might be too long or the server is busy.";
-          setError(errorMsg);
-      } finally {
-          setIsLoading(false);
-      }
   };
 
   const handleTextSubmit = async () => {
@@ -406,9 +376,8 @@ const Dashboard = ({ user: currentUser }) => {
             <h2 className="text-2xl md:text-4xl font-black mb-8">Universal Content Input</h2>
             
             <div className="flex justify-center gap-4 mb-8">
-                <button onClick={() => setActiveTab("file")} className={`px-6 py-3 rounded-full text-xs font-bold uppercase tracking-widest transition-all ${activeTab === 'file' ? 'bg-verbatim-orange text-white shadow-lg' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>File Upload</button>
-                <button onClick={() => setActiveTab("link")} className={`px-6 py-3 rounded-full text-xs font-bold uppercase tracking-widest transition-all ${activeTab === 'link' ? 'bg-verbatim-orange text-white shadow-lg' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>Video Link</button>
-                <button onClick={() => setActiveTab("text")} className={`px-6 py-3 rounded-full text-xs font-bold uppercase tracking-widest transition-all ${activeTab === 'text' ? 'bg-verbatim-orange text-white shadow-lg' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>Paste Text</button>
+                <button onClick={() => setActiveTab("file")} className={`px-8 py-3 rounded-full text-xs font-bold uppercase tracking-widest transition-all shadow-[0_0_15px_rgba(255,77,0,0.3)] hover:scale-105 ${activeTab === 'file' ? 'bg-verbatim-orange text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>File Upload</button>
+                <button onClick={() => setActiveTab("text")} className={`px-8 py-3 rounded-full text-xs font-bold uppercase tracking-widest transition-all shadow-[0_0_15px_rgba(255,77,0,0.3)] hover:scale-105 ${activeTab === 'text' ? 'bg-verbatim-orange text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>Paste Text</button>
             </div>
 
               {error && (
@@ -420,7 +389,7 @@ const Dashboard = ({ user: currentUser }) => {
               )}
 
             {activeTab === 'file' && (
-                <div onClick={() => fileInputRef.current.click()} className="group relative border-2 border-dashed border-verbatim-orange/20 hover:border-verbatim-orange/50 bg-white/5 rounded-3xl p-10 md:p-20 cursor-pointer transition-all duration-500 overflow-hidden">
+                <div onClick={() => fileInputRef.current.click()} className="group relative border-2 border-dashed border-verbatim-orange/20 hover:border-verbatim-orange/50 bg-white/5 rounded-3xl p-10 md:p-20 cursor-pointer transition-all duration-500 overflow-hidden backdrop-blur-sm">
                 <div className="absolute inset-0 bg-verbatim-orange/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
                 <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="audio/*,video/*" className="hidden" />
                 <div className="flex flex-col items-center gap-6 relative z-10">
@@ -433,27 +402,8 @@ const Dashboard = ({ user: currentUser }) => {
                 </div>
             )}
 
-            {activeTab === 'link' && (
-                 <div className="bg-white/5 rounded-3xl p-10 border border-white/10">
-                     <div className="flex flex-col items-center gap-6 max-w-2xl mx-auto">
-                         <div className="p-6 bg-blue-500/10 rounded-full text-blue-400 mb-4"><LinkIcon size={48} /></div>
-                         <h3 className="text-xl font-bold">Paste Video URL</h3>
-                         <input 
-                            type="text" 
-                            value={linkUrl}
-                            onChange={(e) => setLinkUrl(e.target.value)}
-                            placeholder="https://youtube.com/watch?v=..." 
-                            className="w-full bg-black/40 border border-white/20 rounded-xl p-4 text-white focus:border-verbatim-orange focus:outline-none"
-                         />
-                         <button onClick={handleLinkSubmit} disabled={isLoading || !linkUrl} className="w-full py-4 bg-verbatim-orange text-white font-bold rounded-xl hover:bg-orange-600 transition-all uppercase tracking-widest disabled:opacity-50">
-                             {isLoading ? "Downloading & Processing..." : "Process Link"}
-                         </button>
-                     </div>
-                 </div>
-            )}
-
             {activeTab === 'text' && (
-                 <div className="bg-white/5 rounded-3xl p-10 border border-white/10">
+                 <div className="bg-white/5 rounded-3xl p-10 border border-white/10 backdrop-blur-sm">
                      <div className="flex flex-col items-center gap-6 max-w-3xl mx-auto">
                          <div className="p-6 bg-purple-500/10 rounded-full text-purple-400 mb-4"><Edit3 size={48} /></div>
                          <h3 className="text-xl font-bold">Paste Raw Text</h3>
@@ -461,9 +411,9 @@ const Dashboard = ({ user: currentUser }) => {
                             value={rawText}
                             onChange={(e) => setRawText(e.target.value)}
                             placeholder="Paste your meeting notes, article, or messy text here..." 
-                            className="w-full h-64 bg-black/40 border border-white/20 rounded-xl p-4 text-white focus:border-verbatim-orange focus:outline-none resize-none"
+                            className="w-full h-64 bg-black/40 border border-white/20 rounded-xl p-4 text-white focus:border-verbatim-orange focus:outline-none resize-none shadow-inner"
                          />
-                         <button onClick={handleTextSubmit} disabled={isLoading || !rawText} className="w-full py-4 bg-verbatim-orange text-white font-bold rounded-xl hover:bg-orange-600 transition-all uppercase tracking-widest disabled:opacity-50">
+                         <button onClick={handleTextSubmit} disabled={isLoading || !rawText} className="w-full py-4 bg-verbatim-orange text-white font-bold rounded-xl hover:bg-orange-600 transition-all uppercase tracking-widest disabled:opacity-50 shadow-lg hover:shadow-verbatim-orange/50">
                              {isLoading ? "Analyzing Text..." : "Generate Insights"}
                          </button>
                      </div>
@@ -471,7 +421,7 @@ const Dashboard = ({ user: currentUser }) => {
             )}
 
             {activeTab === 'file' && selectedFile && !isLoading && (
-              <button onClick={(e) => handleUpload(e)} className="mt-10 w-full max-w-md py-4 md:py-5 bg-verbatim-orange text-white font-black text-lg rounded-2xl hover:bg-orange-600 transition-all shadow-2xl uppercase tracking-widest">
+              <button onClick={(e) => handleUpload(e)} className="mt-10 w-full max-w-md py-4 md:py-5 bg-verbatim-orange text-white font-black text-lg rounded-2xl hover:bg-orange-600 transition-all shadow-2xl shadow-verbatim-orange/20 uppercase tracking-widest">
                 Start Cloud Transcription
               </button>
             )}
@@ -534,7 +484,7 @@ const Dashboard = ({ user: currentUser }) => {
                 </div>
               </div>
 
-              <div className="glass-card p-6 md:p-10 rounded-3xl border border-verbatim-orange/30 bg-gradient-to-br from-verbatim-navy to-black relative overflow-hidden">
+              <div className="glass-card p-6 md:p-10 rounded-3xl border border-verbatim-orange/30 bg-gradient-to-br from-verbatim-navy to-black relative overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.5)]">
                 <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none"><Globe size={200} className="text-verbatim-orange" /></div>
                 
                 <div className="relative z-10">
@@ -617,12 +567,12 @@ const Dashboard = ({ user: currentUser }) => {
                         </div>
                         <audio controls src={generatedAudio} className="w-full mb-8 h-12" autoPlay />
                         
-                        {/* --- FIXED: DOWNLOAD BUTTON VISIBLE --- */}
+                        {/* --- DOWNLOAD BUTTON --- */}
                         <div className="flex justify-end mb-6">
                             <button 
                                 onClick={handleDownloadAudio}
                                 disabled={isDownloading}
-                                className="flex items-center gap-2 px-6 py-3 bg-white/5 hover:bg-green-500/20 text-green-400 border border-green-500/30 rounded-xl text-xs font-bold uppercase tracking-widest transition-all hover:scale-[1.02] cursor-pointer"
+                                className="flex items-center gap-2 px-6 py-3 bg-white/5 hover:bg-green-500/20 text-green-400 border border-green-500/30 rounded-xl text-xs font-bold uppercase tracking-widest transition-all hover:scale-[1.02] cursor-pointer shadow-lg shadow-green-500/10"
                             >
                                 {isDownloading ? <Loader2 className="animate-spin" size={16}/> : <Download size={16} />}
                                 {isDownloading ? "DOWNLOADING..." : "DOWNLOAD AUDIO"}
