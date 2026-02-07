@@ -1,7 +1,7 @@
 import React from 'react';
 import { 
   ArrowRight, Mic, Globe, Zap, Volume2, Layers, Radio, Lock, 
-  Link as LinkIcon, Activity, FileText, Shield, Cpu 
+  Link as LinkIcon, Activity, FileText, Shield, Cpu, CheckCircle 
 } from 'lucide-react';
 import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import { auth } from '../firebase';
@@ -27,54 +27,54 @@ const LandingPage = () => {
     </svg>
   );
 
-  // --- FEATURES DATA ---
+  // --- FULL 6-CARD FEATURE GRID ---
   const features = [
     {
       icon: <Mic size={32} />,
       color: "text-verbatim-orange",
       bg: "bg-verbatim-orange/10",
       title: "Precision Transcription",
-      desc: "Convert speech to text with 99% accuracy. Our engine captures nuances, accents, and technical jargon seamlessly."
+      desc: "Convert speech to text with 99% accuracy. Captures nuances, accents, and technical jargon seamlessly."
     },
     {
       icon: <Globe size={32} />,
       color: "text-blue-400",
       bg: "bg-blue-500/10",
       title: "Global Localization",
-      desc: "Break language barriers instantly. Translate and dub your content into 50+ languages with native-level AI voices."
+      desc: "Translate and dub content into 50+ languages. Reach new markets with native-level AI voiceovers."
     },
     {
       icon: <Layers size={32} />,
       color: "text-purple-400",
       bg: "bg-purple-500/10",
       title: "Multi-Format Engine",
-      desc: "One upload, infinite assets. Generate Blog Posts, Summaries, and Tweets automatically from a single audio file."
+      desc: "One upload, infinite assets. Automatically generate Blog Posts and Summaries from a single file."
     },
     {
       icon: <Cpu size={32} />,
       color: "text-pink-400",
       bg: "bg-pink-500/10",
       title: "Smart Summarization",
-      desc: "Turn hour-long meetings into 5-minute executive briefs. The AI identifies action items and key decisions."
+      desc: "Turn hour-long meetings into 5-minute executive briefs. AI identifies key action items instantly."
     },
     {
       icon: <Volume2 size={32} />,
       color: "text-green-400",
       bg: "bg-green-500/10",
       title: "Audio Extraction",
-      desc: "Upload video files (MP4, MOV) and let our engine strip the audio at 40x speed for instant processing."
+      desc: "Upload video files (MP4, MOV) and let our engine strip the audio at 40x speed for fast processing."
     },
     {
       icon: <Shield size={32} />,
       color: "text-cyan-400",
       bg: "bg-cyan-500/10",
       title: "Enterprise Security",
-      desc: "Your data is encrypted and processed in a secure cloud environment. We prioritize privacy and asset protection."
+      desc: "Data is encrypted and processed in a secure cloud environment. We prioritize privacy and asset protection."
     }
   ];
 
   return (
-    <div className="min-h-screen bg-verbatim-navy text-white font-sans selection:bg-verbatim-orange selection:text-white overflow-x-hidden relative perspective-1000">
+    <div className="min-h-screen bg-verbatim-navy text-white font-sans selection:bg-verbatim-orange selection:text-white overflow-x-hidden w-full relative perspective-1000">
       
       {/* --- 3D ATMOSPHERE --- */}
       <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none">
@@ -83,19 +83,20 @@ const LandingPage = () => {
           <div className="absolute bottom-[-10%] left-[20%] w-[350px] md:w-[700px] h-[350px] md:h-[700px] bg-blue-600/10 rounded-full blur-[100px] md:blur-[150px] animate-blob animation-delay-4000"></div>
       </div>
 
-      <div className="relative z-10">
+      <div className="relative z-10 w-full">
         
-        {/* --- NAVBAR (MOBILE FIXED) --- */}
+        {/* --- NAVBAR --- */}
         <nav className="fixed w-full z-50 top-0 left-0 border-b border-white/5 backdrop-blur-xl bg-verbatim-navy/80">
-          <div className="max-w-7xl mx-auto px-6 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
+          <div className="max-w-7xl mx-auto px-4 md:px-6 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="flex items-center gap-4 group cursor-pointer w-full md:w-auto justify-center md:justify-start" onClick={() => window.scrollTo({top: 0, behavior: 'smooth'})}>
               <div className="relative flex items-center justify-center">
                 <div className="absolute -inset-2 bg-gradient-to-tr from-verbatim-orange to-pink-500 rounded-xl blur-md opacity-0 group-hover:opacity-100 transition-all duration-500"></div>
-                <img src={LOGO_PATH} alt="Verbatim Logo" className="relative h-12 md:h-16 w-auto rounded-lg border border-verbatim-orange/50 bg-black/50 p-1 transform group-hover:scale-105 transition-all duration-300 z-10 shadow-lg object-contain" />
+                {/* LOGO SIZE FIX: Larger on Desktop (h-24), contained on Mobile (h-14) */}
+                <img src={LOGO_PATH} alt="Verbatim Logo" className="relative h-14 md:h-24 w-auto rounded-lg border border-verbatim-orange/50 bg-black/50 p-1 transform group-hover:scale-105 transition-all duration-300 z-10 shadow-lg object-contain" />
               </div>
               <div className="flex flex-col -space-y-1">
-                <span className="text-xl md:text-2xl font-black tracking-tighter italic bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400 group-hover:from-verbatim-orange group-hover:to-pink-500 transition-all duration-300">VERBATIM</span>
-                <span className="text-[9px] md:text-[10px] font-bold tracking-[0.3em] text-verbatim-orange uppercase shadow-orange-glow">Transcription Pro</span>
+                <span className="text-xl md:text-3xl font-black tracking-tighter italic bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400 group-hover:from-verbatim-orange group-hover:to-pink-500 transition-all duration-300">VERBATIM</span>
+                <span className="text-[10px] md:text-xs font-bold tracking-[0.3em] text-verbatim-orange uppercase shadow-orange-glow">Transcription Pro</span>
               </div>
             </div>
             <button onClick={handleGoogleLogin} className="w-full md:w-auto px-6 py-3 bg-white text-gray-900 font-bold rounded-full hover:bg-gray-200 transition-all shadow-[0_0_20px_rgba(255,255,255,0.2)] hover:scale-105 active:scale-95 flex items-center justify-center gap-2 border border-gray-300 text-sm md:text-base">
@@ -106,7 +107,7 @@ const LandingPage = () => {
         </nav>
 
         {/* --- HERO SECTION --- */}
-        <header className="relative pt-40 md:pt-64 pb-20 md:pb-32 px-6 overflow-hidden">
+        <header className="relative pt-40 md:pt-64 pb-20 md:pb-32 px-4 md:px-6 overflow-hidden">
           <div className="max-w-6xl mx-auto text-center relative z-10">
             <div className="animate-fade-in-up">
               <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-verbatim-orange/10 text-verbatim-orange border border-verbatim-orange/20 text-[10px] md:text-xs font-bold mb-6 md:mb-8 uppercase tracking-[0.2em] hover:bg-verbatim-orange/20 transition-colors cursor-default">
@@ -130,8 +131,8 @@ const LandingPage = () => {
           </div>
         </header>
 
-        {/* --- 3D FEATURE GRID (RESTORED TO 6 CARDS) --- */}
-        <section className="py-20 md:py-24 px-6 bg-black/20 backdrop-blur-sm border-t border-white/5">
+        {/* --- 3D FEATURE GRID (FIXED: 6 CARDS) --- */}
+        <section className="py-20 md:py-24 px-4 md:px-6 bg-black/20 backdrop-blur-sm border-t border-white/5">
           <div className="max-w-7xl mx-auto">
             <div className="text-center mb-16 md:mb-20">
               <h2 className="text-3xl md:text-5xl font-black mb-4 md:mb-6 tracking-tight">Everything You Need</h2>
@@ -141,7 +142,7 @@ const LandingPage = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8 perspective-1000">
               {features.map((feature, idx) => (
                 <div key={idx} className="group glass-card p-8 rounded-3xl border border-white/5 hover:border-white/20 transition-all duration-500 bg-verbatim-navy/40 transform hover:-translate-y-2 hover:rotate-x-2 shadow-xl hover:shadow-2xl">
-                  <div className={`mb-6 p-4 ${feature.bg} w-fit rounded-2xl ${feature.color} group-hover:scale-110 transition-transform duration-500`}>
+                  <div className={`mb-6 p-4 ${feature.bg} w-fit rounded-2xl ${feature.color} group-hover:scale-110 transition-transform duration-500 shadow-inner`}>
                     {feature.icon}
                   </div>
                   <h3 className={`text-xl font-bold mb-3 ${feature.color} transition-colors`}>{feature.title}</h3>
@@ -152,8 +153,8 @@ const LandingPage = () => {
           </div>
         </section>
 
-        {/* --- THE VAULT (COMING SOON - 3D LOCKED CARDS) --- */}
-        <section className="py-24 md:py-32 px-6 relative overflow-hidden">
+        {/* --- THE VAULT (ROADMAP) --- */}
+        <section className="py-24 md:py-32 px-4 md:px-6 relative overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-b from-black/0 via-verbatim-orange/5 to-black/0"></div>
           <div className="max-w-7xl mx-auto relative z-10">
             <div className="flex flex-col md:flex-row items-center md:items-end justify-between mb-12 md:mb-16 gap-6 text-center md:text-left">
@@ -168,15 +169,15 @@ const LandingPage = () => {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-10">
-              {/* Locked Feature 1 */}
-              <div className="relative group p-1 rounded-3xl bg-gradient-to-br from-white/5 to-white/0 hover:from-verbatim-orange/20 hover:to-transparent transition-all duration-500 transform hover:scale-[1.01]">
-                <div className="absolute inset-0 bg-black/60 backdrop-blur-[3px] z-20 rounded-3xl flex flex-col items-center justify-center transition-opacity duration-500">
+              {/* Locked Feature 1 - FIX: Opacity-0 on overlay by default */}
+              <div className="relative group p-1 rounded-3xl bg-gradient-to-br from-white/5 to-white/0 hover:from-verbatim-orange/20 hover:to-transparent transition-all duration-500 transform hover:scale-[1.01] overflow-hidden">
+                <div className="absolute inset-0 bg-black/80 backdrop-blur-sm z-20 rounded-3xl flex flex-col items-center justify-center transition-all duration-500 opacity-0 group-hover:opacity-100 cursor-not-allowed">
                   <div className="bg-black/90 px-5 py-3 rounded-full border border-verbatim-orange/50 text-verbatim-orange font-bold tracking-widest uppercase text-[10px] flex items-center gap-2 shadow-[0_0_30px_rgba(255,77,0,0.3)] mb-2">
                     <Lock size={12} /> Locked // Dev Phase
                   </div>
                   <p className="text-gray-400 text-xs font-mono">Unlocking Q3 2026</p>
                 </div>
-                <div className="h-full bg-verbatim-navy p-8 md:p-10 rounded-[22px] relative overflow-hidden border border-white/5">
+                <div className="h-full bg-verbatim-navy p-8 md:p-10 rounded-[22px] relative overflow-hidden border border-white/5 group-hover:blur-[2px] transition-all duration-500">
                   <div className="absolute top-0 right-0 p-6 opacity-10"><LinkIcon size={100} /></div>
                   <div className="mb-6 p-4 bg-gray-800 w-fit rounded-2xl text-gray-400"><LinkIcon size={32} /></div>
                   <h3 className="text-2xl font-bold mb-2 text-gray-300">Social Link Intelligence</h3>
@@ -188,15 +189,15 @@ const LandingPage = () => {
                 </div>
               </div>
 
-              {/* Locked Feature 2 */}
-              <div className="relative group p-1 rounded-3xl bg-gradient-to-br from-white/5 to-white/0 hover:from-purple-500/20 hover:to-transparent transition-all duration-500 transform hover:scale-[1.01]">
-                <div className="absolute inset-0 bg-black/60 backdrop-blur-[3px] z-20 rounded-3xl flex flex-col items-center justify-center transition-opacity duration-500">
+              {/* Locked Feature 2 - FIX: Opacity-0 on overlay by default */}
+              <div className="relative group p-1 rounded-3xl bg-gradient-to-br from-white/5 to-white/0 hover:from-purple-500/20 hover:to-transparent transition-all duration-500 transform hover:scale-[1.01] overflow-hidden">
+                <div className="absolute inset-0 bg-black/80 backdrop-blur-sm z-20 rounded-3xl flex flex-col items-center justify-center transition-all duration-500 opacity-0 group-hover:opacity-100 cursor-not-allowed">
                   <div className="bg-black/90 px-5 py-3 rounded-full border border-purple-500/50 text-purple-400 font-bold tracking-widest uppercase text-[10px] flex items-center gap-2 shadow-[0_0_30px_rgba(168,85,247,0.3)] mb-2">
                     <Lock size={12} /> Locked // Research Phase
                   </div>
                   <p className="text-gray-400 text-xs font-mono">Unlocking Q4 2026</p>
                 </div>
-                <div className="h-full bg-verbatim-navy p-8 md:p-10 rounded-[22px] relative overflow-hidden border border-white/5">
+                <div className="h-full bg-verbatim-navy p-8 md:p-10 rounded-[22px] relative overflow-hidden border border-white/5 group-hover:blur-[2px] transition-all duration-500">
                   <div className="absolute top-0 right-0 p-6 opacity-10"><Activity size={100} /></div>
                   <div className="mb-6 p-4 bg-gray-800 w-fit rounded-2xl text-gray-400"><Activity size={32} /></div>
                   <h3 className="text-2xl font-bold mb-2 text-gray-300">Voice Cloning & Synthesis</h3>
