@@ -23,7 +23,12 @@ from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import edge_tts
+import yt_dlp
 from pydantic import BaseModel
+
+# --- AUTO-INSTALL FFMPEG ---
+import static_ffmpeg
+static_ffmpeg.add_paths()
 
 # --- 1. SETUP & CONFIG ---
 load_dotenv()
@@ -43,7 +48,7 @@ try:
             print("✅ Loading Firebase Key from File...")
             cred = credentials.Certificate(key_path)
         else:
-            print("❌ CRITICAL: No Firebase Key found in File or Environment!")
+            print("⚠️ WARNING: No Firebase Key found. Database saves will fail.")
         
         if cred:
             firebase_admin.initialize_app(cred)
@@ -77,17 +82,16 @@ def retry_gemini_call(model_instance, prompt_input, retries=3, delay=5):
         try:
             return model_instance.generate_content(prompt_input)
         except Exception as e:
-            error_str = str(e)
-            if "429" in error_str:
-                if attempt < retries - 1:
-                    print(f"⚠️ Quota Hit (429). Retrying in {delay}s...")
-                    time.sleep(delay)
-                    delay *= 2 
-                    continue
-                else:
-                    raise e
-            else:
-                raise e 
+            if "429" in str(e) and attempt < retries - 1:
+                time.sleep(delay * (attempt + 1))
+                continue
+            raise e
+
+def extract_video_id(url):
+    """Extracts YouTube Video ID from various URL formats"""
+    regex = r"(?:v=|\/)([0-9A-Za-z_-]{11}).*"
+    match = re.search(regex, url)
+    return match.group(1) if match else None
 
 # --- 2. GLOBAL VOICE DATABASE ---
 VOICE_DB = {
@@ -140,7 +144,6 @@ TEMP_DIR = Path("temp")
 TEMP_DIR.mkdir(exist_ok=True)
 app.mount("/temp", StaticFiles(directory="temp"), name="temp")
 
-# --- DATA MODELS ---
 class LinkRequest(BaseModel):
     url: str
     user_id: str
@@ -149,11 +152,10 @@ class TextRequest(BaseModel):
     text: str
     user_id: str
 
-# --- 4. ENDPOINTS ---
-
+# --- ENDPOINTS ---
 @app.get("/")
 def read_root():
-    return {"status": "Verbatim Engine Online", "Global_Reach": "Active"}
+    return {"status": "Verbatim Engine Online"}
 
 @app.get("/api/languages")
 def get_languages():
@@ -161,261 +163,158 @@ def get_languages():
 
 @app.get("/api/voices")
 def get_voices(language: str):
-    return VOICE_DB.get(language, VOICE_DB["English (US)"])
+    return VOICE_DB.get(language, VOICE_DB.get("English (US)"))
 
 @app.get("/api/history/{user_id}")
 def get_history(user_id: str):
     try:
         docs = db.collection('users').document(user_id).collection('transcriptions').order_by("upload_time", direction=firestore.Query.DESCENDING).stream()
-        history = []
-        for doc in docs:
-            data = doc.to_dict()
-            if "upload_time" in data and data["upload_time"]:
-                data["upload_time"] = data["upload_time"].isoformat()
-            history.append({"id": doc.id, **data})
-        return history
+        return [{"id": doc.id, **doc.to_dict(), "upload_time": doc.to_dict().get("upload_time", "").isoformat() if doc.to_dict().get("upload_time") else ""} for doc in docs]
     except Exception as e:
-        print(f"❌ History Fetch Error: {e}")
-        return [] # Return empty list on error instead of crashing
+        print(f"History Error: {e}")
+        return []
 
 @app.delete("/api/history/{user_id}/{doc_id}")
 def delete_history_item(user_id: str, doc_id: str):
     try:
-        doc_ref = db.collection('users').document(user_id).collection('transcriptions').document(doc_id)
-        if not doc_ref.get().exists:
-             raise HTTPException(status_code=404, detail="Item not found")
-        doc_ref.delete()
-        return {"status": "deleted", "id": doc_id}
+        db.collection('users').document(user_id).collection('transcriptions').document(doc_id).delete()
+        return {"status": "deleted"}
     except Exception as e:
-        print(f"❌ Delete Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/api/generate-audio")
-async def generate_audio(
-    text: Annotated[str, Form()],
-    emotion: Annotated[str, Form()],
-    language: Annotated[str, Form()],
-    voice_id: Annotated[str, Form()]
-):
-    try:
-        translation_prompt = f"Translate the following text into {language}. Return ONLY the translation, no extra text:\n\n{text}"
-        translation_response = retry_gemini_call(model, translation_prompt)
-        translated_text = translation_response.text.strip()
-        tts_ready_text = clean_text_for_tts(translated_text)
-        settings = EMOTION_SETTINGS.get(emotion, EMOTION_SETTINGS["Neutral"])
-        
-        output_filename = f"dub_{uuid.uuid4()}.mp3"
-        output_path = TEMP_DIR / output_filename
-        
-        communicate = edge_tts.Communicate(tts_ready_text, voice_id, rate=settings["rate"], pitch=settings["pitch"])
-        await communicate.save(str(output_path))
-        gc.collect()
-        
-        return {
-            "status": "success", 
-            "audio_url": f"/temp/{output_filename}", 
-            "translated_text": translated_text,
-            "language": language
-        }
-    except Exception as e:
-        print(f"❌ Dubbing Error: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-# --- THE "SWARM" API-PROXY LINK PROCESSOR ---
+# --- THE "PIPED" PROXY LINK PROCESSOR (ANTI-BLOCK) ---
 @app.post("/api/process-link")
 async def process_link(request: LinkRequest):
     if not request.user_id: raise HTTPException(status_code=400, detail="User ID required.")
     
     unique_id = uuid.uuid4()
-    # Using .mp3 extension for safety, but content might be m4a/opus (Gemini handles it)
-    output_filename = f"social_{unique_id}.mp3" 
+    output_filename = f"social_{unique_id}.mp3"
     output_path = TEMP_DIR / output_filename
     
-    print(f"🚀 Processing Social Link via Swarm: {request.url}")
-
-    # --- THE MAGIC: ROTATING NODE LIST ---
-    # We use a swarm of Cobalt instances. If one is blocked, we try the next.
-    relay_nodes = [
-        "https://co.wuk.sh/api/json",           # Reliable Primary
-        "https://api.cobalt.tools/api/json",    # Official
-        "https://cobalt.steamcommunity.com/api/json" # Backup
-    ]
+    print(f"🚀 [PIPED PROXY] Processing: {request.url}")
     
-    download_success = False
+    success = False
     
-    # 1. ATTEMPT DOWNLOAD VIA RELAY
-    for node in relay_nodes:
-        if download_success: break
-        try:
-            print(f"🔄 Trying Node: {node}")
-            
-            headers = {"Accept": "application/json", "Content-Type": "application/json"}
-            payload = {
-                "url": request.url,
-                "aFormat": "mp3",
-                "isAudioOnly": True # Lightweight download
-            }
-            
-            # Request the file location from the node
-            response = requests.post(node, json=payload, headers=headers, timeout=20)
-            data = response.json()
-            
-            if "url" in data:
-                stream_url = data["url"]
-                print(f"⬇️ Node Success! Downloading stream...")
-                
-                # Download the actual file from the stream URL
-                with requests.get(stream_url, stream=True, timeout=60) as r:
-                    r.raise_for_status()
-                    with open(output_path, 'wb') as f:
-                        for chunk in r.iter_content(chunk_size=8192):
-                            f.write(chunk)
-                            
-                # Verify file size > 0
-                if output_path.exists() and output_path.stat().st_size > 1000:
-                    download_success = True
-                    print("✅ File acquired successfully.")
-            elif "status" in data and data["status"] == "error":
-                print(f"⚠️ Node reported error: {data.get('text')}")
-                
-        except Exception as e:
-            print(f"⚠️ Node Failed ({node}): {e}")
-            continue
-
-    if not download_success:
-        print("❌ All Swarm Nodes Failed.")
-        raise HTTPException(status_code=500, detail="Could not retrieve content. Link might be private, geo-locked, or all proxies are currently busy.")
-
-    try:
-        # 2. UPLOAD TO GEMINI
-        print("📤 Uploading to AI Engine...")
-        media_file = genai.upload_file(path=str(output_path), mime_type="audio/mp3") 
+    # --- STRATEGY 1: PIPED API (YouTube Only - No Block) ---
+    # Piped acts as a middleman. We ask it for the stream URL, it gives us a clean link.
+    video_id = extract_video_id(request.url)
+    if video_id and not success:
+        print(f"🔄 Detected YouTube ID: {video_id}. Attempting Piped Proxy...")
+        piped_instances = [
+            "https://pipedapi.kavin.rocks",
+            "https://api.piped.privacy.com.de",
+            "https://pipedapi.tokhmi.xyz"
+        ]
         
+        for instance in piped_instances:
+            try:
+                resp = requests.get(f"{instance}/streams/{video_id}", timeout=10)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    # Find best audio stream
+                    audio_streams = data.get("audioStreams", [])
+                    if audio_streams:
+                        # Get the one with highest bitrate
+                        best_audio = max(audio_streams, key=lambda x: x.get("bitrate", 0))
+                        stream_url = best_audio["url"]
+                        
+                        print(f"⬇️ Downloading clean stream from Piped ({instance})...")
+                        with requests.get(stream_url, stream=True, timeout=30) as r:
+                            r.raise_for_status()
+                            with open(output_path, 'wb') as f:
+                                for chunk in r.iter_content(chunk_size=8192):
+                                    f.write(chunk)
+                        
+                        if output_path.exists() and output_path.stat().st_size > 1000:
+                            success = True
+                            print("✅ Success: Piped Proxy")
+                            break
+            except Exception as e:
+                print(f"⚠️ Piped Instance {instance} Failed: {e}")
+                continue
+
+    # --- STRATEGY 2: COBALT SWARM (For TikTok/Twitter/FB/Backup) ---
+    if not success:
+        print("🔄 Attempting Cobalt Relay Swarm...")
+        nodes = [
+            "https://co.wuk.sh/api/json",
+            "https://api.cobalt.tools/api/json", 
+            "https://cobalt.steamcommunity.com/api/json"
+        ]
+        for node in nodes:
+            try:
+                headers = {"Accept": "application/json", "Content-Type": "application/json"}
+                payload = {"url": request.url, "aFormat": "mp3", "isAudioOnly": True}
+                resp = requests.post(node, json=payload, headers=headers, timeout=20)
+                data = resp.json()
+                if "url" in data:
+                    print(f"⬇️ Downloading from Cobalt ({node})...")
+                    with requests.get(data["url"], stream=True, timeout=30) as r:
+                        r.raise_for_status()
+                        with open(output_path, 'wb') as f:
+                            for chunk in r.iter_content(chunk_size=8192):
+                                f.write(chunk)
+                    if output_path.exists() and output_path.stat().st_size > 1000:
+                        success = True
+                        print(f"✅ Success: Cobalt Relay")
+                        break
+            except Exception as e:
+                print(f"⚠️ Cobalt Node {node} Error: {e}")
+
+    # --- STRATEGY 3: YT-DLP (Last Resort - Force IPv4) ---
+    if not success:
+        print("🔄 Attempting yt-dlp (Last Resort)...")
+        try:
+            # We run this as a subprocess to ensure clean environment
+            # Force IPv4 to bypass common Cloud blocks
+            cmd = [
+                "yt-dlp",
+                "-f", "bestaudio",
+                "--force-ipv4",
+                "--no-check-certificate",
+                "-o", str(output_path),
+                request.url
+            ]
+            subprocess.run(cmd, check=True, timeout=60)
+            if output_path.exists() and output_path.stat().st_size > 1000:
+                success = True
+                print("✅ Success: yt-dlp Local")
+        except Exception as e:
+            print(f"⚠️ yt-dlp Failed: {e}")
+
+    if not success:
+        print("❌ CRITICAL: All Extraction Strategies Failed.")
+        raise HTTPException(status_code=500, detail="Unable to retrieve media. The link may be private, geo-blocked, or the proxy network is overloaded.")
+
+    # --- AI PROCESSING ---
+    try:
+        print("📤 Uploading to Gemini...")
+        media_file = genai.upload_file(path=str(output_path), mime_type="audio/mp3")
+        
+        start = time.time()
         while media_file.state.name == "PROCESSING":
+            if time.time() - start > 60: break
             time.sleep(1)
             media_file = genai.get_file(media_file.name)
             
-        # 3. ANALYZE
-        print("🧠 Generating Insights...")
+        print("🧠 Analyzing...")
         response = retry_gemini_call(model, [
             media_file,
             "Provide: 1. Full Transcript (No timestamps). 2. Blog Post (500 words). 3. Summary (150 words). Format with headings: 'Transcript', 'Blog Post', 'Summary'."
         ])
-
+        
         full_text = response.text
         transcript = full_text.split("Transcript")[1].split("Blog Post")[0].strip() if "Transcript" in full_text else ""
         clean_trans = clean_transcript(transcript)
         blog_post = full_text.split("Blog Post")[1].split("Summary")[0].strip() if "Blog Post" in full_text else ""
         summary = full_text.split("Summary")[1].strip() if "Summary" in full_text else ""
 
-        # 4. SAVE
-        db.collection('users').document(request.user_id).collection('transcriptions').document().set({
-            "filename": f"Link: {request.url[:30]}...",
-            "upload_time": firestore.SERVER_TIMESTAMP,
-            "transcript": clean_trans, 
-            "blog_post": blog_post, 
-            "summary": summary
-        })
-        
         # Cleanup
         if output_path.exists(): os.remove(output_path)
-
-        return {"message": "Success", "transcript": clean_trans, "blog_post": blog_post, "summary": summary, "filename": "Web Link Asset"}
-
-    except Exception as e:
-        print(f"❌ AI/Database Error: {e}")
-        raise HTTPException(status_code=500, detail=f"Processing Error: {str(e)}")
-
-@app.post("/api/process-text")
-async def process_text(request: TextRequest):
-    if not request.user_id: raise HTTPException(status_code=400, detail="User ID required.")
-    
-    print("🚀 Processing Raw Text Input...")
-    try:
-        prompt = f"""
-        Analyze the following text.
-        1. Return the text exactly as provided under the heading 'Transcript'.
-        2. Write a Viral Blog Post (500 words) based on it under 'Blog Post'.
-        3. Write a Strategic Summary (150 words) under 'Summary'.
         
-        TEXT INPUT:
-        {request.text[:100000]} 
-        """
-        
-        response = retry_gemini_call(model, prompt)
-        full_text = response.text
-        
-        transcript = request.text 
-        blog_post = full_text.split("Blog Post")[1].split("Summary")[0].strip() if "Blog Post" in full_text else ""
-        summary = full_text.split("Summary")[1].strip() if "Summary" in full_text else ""
-
+        # Save DB
         db.collection('users').document(request.user_id).collection('transcriptions').document().set({
-            "filename": f"Text Note: {datetime.datetime.now().strftime('%Y-%m-%d')}",
-            "upload_time": firestore.SERVER_TIMESTAMP,
-            "transcript": transcript, 
-            "blog_post": blog_post, 
-            "summary": summary
-        })
-
-        return {"message": "Success", "transcript": transcript, "blog_post": blog_post, "summary": summary, "filename": "Text Analysis"}
-    except Exception as e:
-        print(f"❌ Text Error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/api/process-media")
-async def process_media(file: UploadFile, user_id: Annotated[str, Form()]):
-    if not user_id: raise HTTPException(status_code=400, detail="User ID required.")
-    
-    file_extension = Path(file.filename).suffix.lower()
-    unique_filename = f"{uuid.uuid4()}{file_extension}"
-    temp_filepath = TEMP_DIR / unique_filename
-    files_to_cleanup = [temp_filepath]
-
-    try:
-        with open(temp_filepath, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-
-        path_to_upload = temp_filepath
-        upload_mime_type = "audio/mp3" 
-
-        if file_extension in ['.mp4', '.mov', '.avi', '.mkv', '.webm']:
-            # We still keep local extraction for direct file uploads as it's reliable for user files
-            audio_path = TEMP_DIR / f"{temp_filepath.stem}.mp3"
-            print(f"🚀 Starting Turbo Extraction for {file.filename}...")
-            command = ["ffmpeg", "-i", str(temp_filepath), "-vn", "-acodec", "libmp3lame", "-q:a", "4", "-y", str(audio_path)]
-            result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            
-            if result.returncode != 0:
-                print(f"⚠️ FFmpeg failed, falling back to raw upload. Error: {result.stderr}")
-                path_to_upload = temp_filepath
-                upload_mime_type = "video/mp4" 
-            else:
-                path_to_upload = audio_path
-                files_to_cleanup.append(audio_path)
-                upload_mime_type = "audio/mp3"
-
-        elif file_extension == ".wav":
-            upload_mime_type = "audio/wav"
-        
-        media_file = genai.upload_file(path=str(path_to_upload), mime_type=upload_mime_type)
-        
-        while media_file.state.name == "PROCESSING":
-            time.sleep(2)
-            media_file = genai.get_file(media_file.name)
-            
-        response = retry_gemini_call(model, [
-            media_file,
-            "Provide: 1. Full Transcript (Do NOT include timestamps, timecodes, or speaker labels). 2. Blog Post (500 words). 3. Summary (150 words). Format with headings: 'Transcript', 'Blog Post', 'Summary'."
-        ])
-
-        full_text = response.text
-        transcript = full_text.split("Transcript")[1].split("Blog Post")[0].strip() if "Transcript" in full_text else ""
-        clean_trans = clean_transcript(transcript)
-        blog_post = full_text.split("Blog Post")[1].split("Summary")[0].strip() if "Blog Post" in full_text else ""
-        summary = full_text.split("Summary")[1].strip() if "Summary" in full_text else ""
-
-        db.collection('users').document(user_id).collection('transcriptions').document().set({
-            "filename": file.filename,
+            "filename": f"Link: {request.url[:30]}...",
             "upload_time": firestore.SERVER_TIMESTAMP,
             "transcript": clean_trans, 
             "blog_post": blog_post, 
@@ -425,14 +324,64 @@ async def process_media(file: UploadFile, user_id: Annotated[str, Form()]):
         return {"message": "Success", "transcript": clean_trans, "blog_post": blog_post, "summary": summary}
 
     except Exception as e:
-        error_str = str(e)
-        print(f"❌ Processing Error: {error_str}")
-        if "429" in error_str:
-             raise HTTPException(status_code=429, detail="Engine Busy. Retrying... please wait a moment.")
+        print(f"❌ AI/Processing Error: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"AI Error: {str(e)}")
+
+@app.post("/api/process-text")
+async def process_text(request: TextRequest):
+    if not request.user_id: raise HTTPException(status_code=400, detail="User ID required.")
+    try:
+        response = retry_gemini_call(model, f"Analyze this text:\n{request.text[:50000]}\n\nProvide: 1. Transcript (Copy input). 2. Blog Post. 3. Summary. Format: 'Transcript', 'Blog Post', 'Summary'.")
+        full_text = response.text
+        transcript = request.text
+        blog_post = full_text.split("Blog Post")[1].split("Summary")[0].strip() if "Blog Post" in full_text else ""
+        summary = full_text.split("Summary")[1].strip() if "Summary" in full_text else ""
+        
+        db.collection('users').document(request.user_id).collection('transcriptions').document().set({
+            "filename": "Text Note", "upload_time": firestore.SERVER_TIMESTAMP,
+            "transcript": transcript, "blog_post": blog_post, "summary": summary
+        })
+        return {"message": "Success", "transcript": transcript, "blog_post": blog_post, "summary": summary}
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    finally:
-        for path in files_to_cleanup:
-            if path.exists(): 
-                try: os.remove(path)
-                except: pass
-        gc.collect()
+
+@app.post("/api/process-media")
+async def process_media(file: UploadFile, user_id: Annotated[str, Form()]):
+    if not user_id: raise HTTPException(status_code=400, detail="User ID required.")
+    
+    unique_filename = f"{uuid.uuid4()}{Path(file.filename).suffix}"
+    temp_filepath = TEMP_DIR / unique_filename
+    
+    try:
+        with open(temp_filepath, "wb") as buffer: shutil.copyfileobj(file.file, buffer)
+        media_file = genai.upload_file(path=str(temp_filepath), mime_type="audio/mp3")
+        while media_file.state.name == "PROCESSING": time.sleep(1); media_file = genai.get_file(media_file.name)
+        
+        response = retry_gemini_call(model, [media_file, "Provide: 1. Transcript 2. Blog Post 3. Summary. Headers: 'Transcript', 'Blog Post', 'Summary'."])
+        full_text = response.text
+        
+        transcript = full_text.split("Transcript")[1].split("Blog Post")[0].strip() if "Transcript" in full_text else ""
+        clean_trans = clean_transcript(transcript)
+        blog_post = full_text.split("Blog Post")[1].split("Summary")[0].strip() if "Blog Post" in full_text else ""
+        summary = full_text.split("Summary")[1].strip() if "Summary" in full_text else ""
+
+        db.collection('users').document(user_id).collection('transcriptions').document().set({
+            "filename": file.filename, "upload_time": firestore.SERVER_TIMESTAMP,
+            "transcript": clean_trans, "blog_post": blog_post, "summary": summary
+        })
+        if temp_filepath.exists(): os.remove(temp_filepath)
+        return {"message": "Success", "transcript": clean_trans, "blog_post": blog_post, "summary": summary}
+    except Exception as e:
+        if temp_filepath.exists(): os.remove(temp_filepath)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/generate-audio")
+async def generate_audio(text: Annotated[str, Form()], emotion: Annotated[str, Form()], language: Annotated[str, Form()], voice_id: Annotated[str, Form()]):
+    try:
+        trans_resp = retry_gemini_call(model, f"Translate to {language}: {text}")
+        clean_text = clean_text_for_tts(trans_resp.text)
+        out_name = f"dub_{uuid.uuid4()}.mp3"
+        await edge_tts.Communicate(clean_text, voice_id).save(str(TEMP_DIR / out_name))
+        return {"status": "success", "audio_url": f"/temp/{out_name}", "translated_text": trans_resp.text}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
