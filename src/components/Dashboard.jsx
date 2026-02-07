@@ -49,6 +49,7 @@ const Dashboard = ({ user: currentUser }) => {
   const [isVoiceLoading, setIsVoiceLoading] = useState(false);
   const [generatedAudio, setGeneratedAudio] = useState(null);
   const [translatedText, setTranslatedText] = useState(null);
+  const [isDownloading, setIsDownloading] = useState(false); // NEW: Download State
 
   useEffect(() => {
     axios.get(`${CLOUD_API_BASE}/api/languages`)
@@ -121,12 +122,34 @@ const Dashboard = ({ user: currentUser }) => {
     document.body.removeChild(element);
   };
 
-  // --- NEW: HANDLE LINK SUBMISSION ---
+  // --- NEW: FORCE DOWNLOAD LOGIC ---
+  const handleDownloadAudio = async () => {
+    if (!generatedAudio) return;
+    setIsDownloading(true);
+    try {
+        const response = await fetch(generatedAudio);
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `Verbatim_Dub_${targetLanguage}.mp3`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(url);
+    } catch (error) {
+        console.error("Download failed:", error);
+        alert("Download failed.");
+    } finally {
+        setIsDownloading(false);
+    }
+  };
+
   const handleLinkSubmit = async () => {
       if (!linkUrl || !currentUser) return;
       setIsLoading(true);
       setError(null);
-      setExtractionStatus("Downloading Link Content...");
+      setExtractionStatus("Downloading via Swarm Network...");
       
       try {
           const response = await axios.post(`${CLOUD_API_BASE}/api/process-link`, {
@@ -138,13 +161,12 @@ const Dashboard = ({ user: currentUser }) => {
           fetchHistory();
       } catch (err) {
           console.error(err);
-          setError("Failed to process link. Check if it's a valid public video/audio URL.");
+          setError("Failed to retrieve link content. Please try another link or upload the file directly.");
       } finally {
           setIsLoading(false);
       }
   };
 
-  // --- NEW: HANDLE TEXT SUBMISSION ---
   const handleTextSubmit = async () => {
       if (!rawText || !currentUser) return;
       setIsLoading(true);
@@ -377,7 +399,6 @@ const Dashboard = ({ user: currentUser }) => {
           <div className="glass-card rounded-3xl p-6 md:p-12 text-center mb-12 border border-white/5 shadow-2xl bg-gradient-to-b from-white/5 to-transparent bg-verbatim-navy/40">
             <h2 className="text-2xl md:text-4xl font-black mb-8">Universal Content Input</h2>
             
-            {/* --- NEW: TABS FOR INPUT --- */}
             <div className="flex justify-center gap-4 mb-8">
                 <button onClick={() => setActiveTab("file")} className={`px-6 py-3 rounded-full text-xs font-bold uppercase tracking-widest transition-all ${activeTab === 'file' ? 'bg-verbatim-orange text-white shadow-lg' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>File Upload</button>
                 <button onClick={() => setActiveTab("link")} className={`px-6 py-3 rounded-full text-xs font-bold uppercase tracking-widest transition-all ${activeTab === 'link' ? 'bg-verbatim-orange text-white shadow-lg' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>Video Link</button>
@@ -392,7 +413,6 @@ const Dashboard = ({ user: currentUser }) => {
                 </div>
               )}
 
-            {/* --- TAB CONTENT: FILE UPLOAD --- */}
             {activeTab === 'file' && (
                 <div onClick={() => fileInputRef.current.click()} className="group relative border-2 border-dashed border-verbatim-orange/20 hover:border-verbatim-orange/50 bg-white/5 rounded-3xl p-10 md:p-20 cursor-pointer transition-all duration-500 overflow-hidden">
                 <div className="absolute inset-0 bg-verbatim-orange/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
@@ -407,7 +427,6 @@ const Dashboard = ({ user: currentUser }) => {
                 </div>
             )}
 
-            {/* --- TAB CONTENT: LINK INPUT --- */}
             {activeTab === 'link' && (
                  <div className="bg-white/5 rounded-3xl p-10 border border-white/10">
                      <div className="flex flex-col items-center gap-6 max-w-2xl mx-auto">
@@ -427,7 +446,6 @@ const Dashboard = ({ user: currentUser }) => {
                  </div>
             )}
 
-            {/* --- TAB CONTENT: TEXT INPUT --- */}
             {activeTab === 'text' && (
                  <div className="bg-white/5 rounded-3xl p-10 border border-white/10">
                      <div className="flex flex-col items-center gap-6 max-w-3xl mx-auto">
@@ -592,6 +610,18 @@ const Dashboard = ({ user: currentUser }) => {
                           <button onClick={() => setGeneratedAudio(null)} className="text-xs text-gray-400 hover:text-white underline">Generate New Version</button>
                         </div>
                         <audio controls src={generatedAudio} className="w-full mb-8 h-12" autoPlay />
+                        
+                        {/* --- NEW: DOWNLOAD BUTTON ADDED HERE --- */}
+                        <div className="flex justify-end mb-6">
+                            <button 
+                                onClick={handleDownloadAudio}
+                                disabled={isDownloading}
+                                className="flex items-center gap-2 px-6 py-3 bg-white/5 hover:bg-green-500/20 text-green-400 border border-green-500/30 rounded-xl text-xs font-bold uppercase tracking-widest transition-all hover:scale-[1.02] cursor-pointer"
+                            >
+                                {isDownloading ? <Loader2 className="animate-spin" size={16}/> : <Download size={16} />}
+                                {isDownloading ? "DOWNLOADING..." : "DOWNLOAD AUDIO"}
+                            </button>
+                        </div>
                         
                         {translatedText && (
                           <div className="text-left">

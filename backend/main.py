@@ -220,72 +220,78 @@ async def generate_audio(
         print(f"❌ Dubbing Error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-# --- THE UNIVERSAL API-PROXY LINK PROCESSOR ---
+# --- THE "SWARM" API-PROXY LINK PROCESSOR ---
 @app.post("/api/process-link")
 async def process_link(request: LinkRequest):
     if not request.user_id: raise HTTPException(status_code=400, detail="User ID required.")
     
-    # Generate filenames
-    unique_id = uuid.uuid4()
-    output_filename = f"social_{unique_id}.mp3"
+    output_filename = f"social_{uuid.uuid4()}.mp3"
     output_path = TEMP_DIR / output_filename
     
-    print(f"🚀 Processing Social Link via Proxy: {request.url}")
+    print(f"🚀 Processing Social Link via Swarm: {request.url}")
 
-    # --- THE MAGIC: LIST OF RELAY NODES ---
-    # We try these in order. If one fails, we move to the next.
-    # These are public Cobalt instances that do the heavy lifting for us.
+    # --- THE MAGIC: ROTATING NODE LIST ---
+    # We use a swarm of Cobalt instances. If one is blocked, we try the next.
     relay_nodes = [
-        "https://co.wuk.sh/api/json",           # Reliable Primary
-        "https://api.cobalt.tools/api/json",    # Official
-        "https://cobalt.steamcommunity.com/api/json" # Backup
+        "https://api.cobalt.tools/api/json",      # Primary (Official)
+        "https://cobalt.steamcommunity.com/api/json", # Robust Backup
+        "https://co.wuk.sh/api/json",             # Fast Secondary
+        "https://api.wcdl.me/api/json"            # Emergency Fallback
     ]
     
     download_success = False
     
-    # 1. ATTEMPT DOWNLOAD VIA RELAY
     for node in relay_nodes:
         if download_success: break
         try:
-            print(f"🔄 Trying Node: {node}")
+            print(f"🔄 Attempting Relay Node: {node}")
             
-            headers = {"Accept": "application/json", "Content-Type": "application/json"}
+            headers = {
+                "Accept": "application/json", 
+                "Content-Type": "application/json",
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            }
+            
             payload = {
                 "url": request.url,
                 "aFormat": "mp3",
-                "isAudioOnly": True
+                "isAudioOnly": True,
+                "dubLang": False
             }
             
-            # Request the file location from the node
-            response = requests.post(node, json=payload, headers=headers, timeout=15)
+            # 1. Ask Node to process
+            response = requests.post(node, json=payload, headers=headers, timeout=20)
             data = response.json()
             
+            # 2. Check for URL in response
             if "url" in data:
                 stream_url = data["url"]
-                print(f"⬇️ Node Success. Downloading Stream...")
+                print(f"⬇️ Node Success! Downloading stream...")
                 
-                # Download the actual file from the stream URL
-                with requests.get(stream_url, stream=True) as r:
+                # 3. Download the actual file
+                with requests.get(stream_url, stream=True, timeout=30) as r:
                     r.raise_for_status()
                     with open(output_path, 'wb') as f:
                         for chunk in r.iter_content(chunk_size=8192):
                             f.write(chunk)
                             
-                # Verify file size > 0
-                if output_path.stat().st_size > 0:
+                # 4. Verify File
+                if output_path.exists() and output_path.stat().st_size > 1000:
                     download_success = True
                     print("✅ File acquired successfully.")
+            elif "status" in data and data["status"] == "error":
+                print(f"⚠️ Node reported error: {data.get('text')}")
                 
         except Exception as e:
             print(f"⚠️ Node Failed ({node}): {e}")
             continue
 
     if not download_success:
-        print("❌ All Proxy Nodes Failed.")
-        raise HTTPException(status_code=500, detail="Could not retrieve content. Link might be private, geo-locked, or unsupported.")
+        print("❌ All Swarm Nodes Failed.")
+        raise HTTPException(status_code=500, detail="Could not retrieve content. Link might be private, geo-locked, or all proxies are currently busy.")
 
     try:
-        # 2. UPLOAD TO GEMINI
+        # 5. UPLOAD TO GEMINI
         print("📤 Uploading to AI Engine...")
         media_file = genai.upload_file(path=str(output_path), mime_type="audio/mp3") 
         
@@ -293,7 +299,7 @@ async def process_link(request: LinkRequest):
             time.sleep(1)
             media_file = genai.get_file(media_file.name)
             
-        # 3. ANALYZE
+        # 6. ANALYZE
         print("🧠 Generating Insights...")
         response = retry_gemini_call(model, [
             media_file,
@@ -306,9 +312,9 @@ async def process_link(request: LinkRequest):
         blog_post = full_text.split("Blog Post")[1].split("Summary")[0].strip() if "Blog Post" in full_text else ""
         summary = full_text.split("Summary")[1].strip() if "Summary" in full_text else ""
 
-        # 4. SAVE
+        # 7. SAVE
         db.collection('users').document(request.user_id).collection('transcriptions').document().set({
-            "filename": f"Social Link: {request.url[:30]}...",
+            "filename": f"Link: {request.url[:30]}...",
             "upload_time": firestore.SERVER_TIMESTAMP,
             "transcript": clean_trans, 
             "blog_post": blog_post, 
