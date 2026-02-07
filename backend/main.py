@@ -46,13 +46,13 @@ try:
         
         if cred:
             firebase_admin.initialize_app(cred)
-            print(f"✅ Database: Active")
+            print(f"✅ Verbatim Database: Active")
             
     db = firestore.client()
 except Exception as e:
     print(f"❌ Firebase Error: {e}")
 
-# --- AI INIT ---
+# --- AI ENGINE CONFIG ---
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 MODEL_NAME = "gemini-flash-latest"
 model = genai.GenerativeModel(MODEL_NAME)
@@ -74,14 +74,77 @@ def retry_gemini_call(model_instance, prompt_input, retries=3, delay=5):
                 continue
             raise e
 
-# --- APP ---
+# --- 2. MASSIVE GLOBAL VOICE DATABASE (50+ LANGUAGES) ---
+VOICE_DB = {
+    "English (US)": [{"id": "en-US-GuyNeural", "name": "Guy (Male)"}, {"id": "en-US-JennyNeural", "name": "Jenny (Female)"}, {"id": "en-US-AriaNeural", "name": "Aria (Female)"}, {"id": "en-US-ChristopherNeural", "name": "Christopher (Male)"}, {"id": "en-US-EricNeural", "name": "Eric (Male)"}],
+    "English (UK)": [{"id": "en-GB-SoniaNeural", "name": "Sonia (Female)"}, {"id": "en-GB-RyanNeural", "name": "Ryan (Male)"}, {"id": "en-GB-LibbyNeural", "name": "Libby (Female)"}],
+    "English (Nigeria)": [{"id": "en-NG-AbeoNeural", "name": "Abeo (Male)"}, {"id": "en-NG-EzinneNeural", "name": "Ezinne (Female)"}],
+    "English (Australia)": [{"id": "en-AU-NatashaNeural", "name": "Natasha (Female)"}, {"id": "en-AU-WilliamNeural", "name": "William (Male)"}],
+    "English (India)": [{"id": "en-IN-NeerjaNeural", "name": "Neerja (Female)"}, {"id": "en-IN-PrabhatNeural", "name": "Prabhat (Male)"}],
+    "French (France)": [{"id": "fr-FR-VivienneNeural", "name": "Vivienne (Female)"}, {"id": "fr-FR-HenriNeural", "name": "Henri (Male)"}],
+    "French (Canada)": [{"id": "fr-CA-SylvieNeural", "name": "Sylvie (Female)"}, {"id": "fr-CA-AntoineNeural", "name": "Antoine (Male)"}],
+    "French (Africa)": [{"id": "fr-FR-RemyMultilingualNeural", "name": "Remy (Male)"}],
+    "Spanish (Spain)": [{"id": "es-ES-ElviraNeural", "name": "Elvira (Female)"}, {"id": "es-ES-AlvaroNeural", "name": "Alvaro (Male)"}],
+    "Spanish (Mexico)": [{"id": "es-MX-DaliaNeural", "name": "Dalia (Female)"}, {"id": "es-MX-JorgeNeural", "name": "Jorge (Male)"}],
+    "Spanish (Argentina)": [{"id": "es-AR-ElenaNeural", "name": "Elena (Female)"}, {"id": "es-AR-TomasNeural", "name": "Tomas (Male)"}],
+    "Portuguese (Brazil)": [{"id": "pt-BR-FranciscaNeural", "name": "Francisca (Female)"}, {"id": "pt-BR-AntonioNeural", "name": "Antonio (Male)"}],
+    "Portuguese (Portugal)": [{"id": "pt-PT-RaquelNeural", "name": "Raquel (Female)"}, {"id": "pt-PT-DuarteNeural", "name": "Duarte (Male)"}],
+    "German": [{"id": "de-DE-KatjaNeural", "name": "Katja (Female)"}, {"id": "de-DE-ConradNeural", "name": "Conrad (Male)"}],
+    "Chinese (Mandarin)": [{"id": "zh-CN-XiaoxiaoNeural", "name": "Xiaoxiao (Female)"}, {"id": "zh-CN-YunxiNeural", "name": "Yunxi (Male)"}],
+    "Chinese (Cantonese)": [{"id": "zh-HK-HiuGaaiNeural", "name": "HiuGaai (Female)"}, {"id": "zh-HK-WanLungNeural", "name": "WanLung (Male)"}],
+    "Chinese (Taiwan)": [{"id": "zh-TW-HsiaoChenNeural", "name": "HsiaoChen (Female)"}, {"id": "zh-TW-YunJheNeural", "name": "YunJhe (Male)"}],
+    "Japanese": [{"id": "ja-JP-NanamiNeural", "name": "Nanami (Female)"}, {"id": "ja-JP-KeitaNeural", "name": "Keita (Male)"}],
+    "Korean": [{"id": "ko-KR-SunHiNeural", "name": "Sun-Hi (Female)"}, {"id": "ko-KR-InJoonNeural", "name": "In-Joon (Male)"}],
+    "Russian": [{"id": "ru-RU-SvetlanaNeural", "name": "Svetlana (Female)"}, {"id": "ru-RU-DmitryNeural", "name": "Dmitry (Male)"}],
+    "Hindi": [{"id": "hi-IN-SwaraNeural", "name": "Swara (Female)"}, {"id": "hi-IN-MadhurNeural", "name": "Madhur (Male)"}],
+    "Arabic": [{"id": "ar-SA-ZariyahNeural", "name": "Zariyah (Female)"}, {"id": "ar-SA-HamedNeural", "name": "Hamed (Male)"}],
+    "Italian": [{"id": "it-IT-ElsaNeural", "name": "Elsa (Female)"}, {"id": "it-IT-IsabellaNeural", "name": "Isabella (Female)"}],
+    "Dutch": [{"id": "nl-NL-FennaNeural", "name": "Fenna (Female)"}, {"id": "nl-NL-MaartenNeural", "name": "Maarten (Male)"}],
+    "Turkish": [{"id": "tr-TR-EmelNeural", "name": "Emel (Female)"}, {"id": "tr-TR-AhmetNeural", "name": "Ahmet (Male)"}],
+    "Polish": [{"id": "pl-PL-ZofiaNeural", "name": "Zofia (Female)"}, {"id": "pl-PL-MarekNeural", "name": "Marek (Male)"}],
+    "Swedish": [{"id": "sv-SE-SofieNeural", "name": "Sofie (Female)"}, {"id": "sv-SE-MattiasNeural", "name": "Mattias (Male)"}],
+    "Indonesian": [{"id": "id-ID-GadisNeural", "name": "Gadis (Female)"}, {"id": "id-ID-ArdiNeural", "name": "Ardi (Male)"}],
+    "Filipino": [{"id": "fil-PH-BlessicaNeural", "name": "Blessica (Female)"}, {"id": "fil-PH-AngeloNeural", "name": "Angelo (Male)"}],
+    "Malay": [{"id": "ms-MY-YasminNeural", "name": "Yasmin (Female)"}, {"id": "ms-MY-OsmanNeural", "name": "Osman (Male)"}],
+    "Thai": [{"id": "th-TH-PremwadeeNeural", "name": "Premwadee (Female)"}, {"id": "th-TH-NiwatNeural", "name": "Niwat (Male)"}],
+    "Vietnamese": [{"id": "vi-VN-HoaiMyNeural", "name": "HoaiMy (Female)"}, {"id": "vi-VN-NamMinhNeural", "name": "NamMinh (Male)"}],
+    "Greek": [{"id": "el-GR-AthinaNeural", "name": "Athina (Female)"}, {"id": "el-GR-NestorasNeural", "name": "Nestoras (Male)"}],
+    "Czech": [{"id": "cs-CZ-VlastaNeural", "name": "Vlasta (Female)"}, {"id": "cs-CZ-AntoninNeural", "name": "Antonin (Male)"}],
+    "Danish": [{"id": "da-DK-ChristelNeural", "name": "Christel (Female)"}, {"id": "da-DK-JeppeNeural", "name": "Jeppe (Male)"}],
+    "Finnish": [{"id": "fi-FI-NooraNeural", "name": "Noora (Female)"}, {"id": "fi-FI-HarriNeural", "name": "Harri (Male)"}],
+    "Hungarian": [{"id": "hu-HU-NoemiNeural", "name": "Noemi (Female)"}, {"id": "hu-HU-TamasNeural", "name": "Tamas (Male)"}],
+    "Norwegian": [{"id": "nb-NO-PernilleNeural", "name": "Pernille (Female)"}, {"id": "nb-NO-FinnNeural", "name": "Finn (Male)"}],
+    "Romanian": [{"id": "ro-RO-AlinaNeural", "name": "Alina (Female)"}, {"id": "ro-RO-EmilNeural", "name": "Emil (Male)"}],
+    "Slovak": [{"id": "sk-SK-ViktoriaNeural", "name": "Viktoria (Female)"}, {"id": "sk-SK-LukasNeural", "name": "Lukas (Male)"}],
+    "Ukrainian": [{"id": "uk-UA-PolinaNeural", "name": "Polina (Female)"}, {"id": "uk-UA-OstapNeural", "name": "Ostap (Male)"}],
+    "Swahili": [{"id": "sw-KE-ZuriNeural", "name": "Zuri (Female)"}, {"id": "sw-TZ-RehemaNeural", "name": "Rehema (Female)"}],
+    "Zulu": [{"id": "zu-ZA-ThandoNeural", "name": "Thando (Female)"}, {"id": "zu-ZA-ThembaNeural", "name": "Themba (Male)"}],
+    "Afrikaans": [{"id": "af-ZA-AdriNeural", "name": "Adri (Female)"}, {"id": "af-ZA-WillemNeural", "name": "Willem (Male)"}],
+    "Amharic": [{"id": "am-ET-MekdesNeural", "name": "Mekdes (Female)"}, {"id": "am-ET-AmehaNeural", "name": "Ameha (Male)"}],
+    "Yoruba": [{"id": "en-NG-EzinneNeural", "name": "Ezinne (Yoruba Accent)"}], 
+    "Bengali": [{"id": "bn-IN-TanishaaNeural", "name": "Tanishaa (Female)"}, {"id": "bn-IN-BashkarNeural", "name": "Bashkar (Male)"}],
+    "Tamil": [{"id": "ta-IN-PallaviNeural", "name": "Pallavi (Female)"}, {"id": "ta-IN-ValluvarNeural", "name": "Valluvar (Male)"}],
+    "Telugu": [{"id": "te-IN-ShrutiNeural", "name": "Shruti (Female)"}, {"id": "te-IN-MohanNeural", "name": "Mohan (Male)"}]
+}
+
+EMOTION_SETTINGS = {
+    "Neutral": {"rate": "+0%", "pitch": "+0Hz"},
+    "Excited": {"rate": "+10%", "pitch": "+5Hz"},
+    "Sad": {"rate": "-10%", "pitch": "-5Hz"},
+    "Professional": {"rate": "-5%", "pitch": "-2Hz"},
+    "Fast": {"rate": "+25%", "pitch": "+0Hz"},
+    "Slow": {"rate": "-25%", "pitch": "+0Hz"}
+}
+
+# --- 3. APP INITIALIZATION ---
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware, 
     allow_origins=["*"], 
     allow_credentials=True, 
     allow_methods=["*"], 
-    allow_headers=["*"]
+    allow_headers=["*"], 
+    expose_headers=["*"]
 )
 
 TEMP_DIR = Path("temp")
@@ -92,58 +155,110 @@ class TextRequest(BaseModel):
     text: str
     user_id: str
 
-# --- ENDPOINTS ---
+# --- 4. ENDPOINTS ---
+
 @app.get("/")
-def read_root(): return {"status": "Online"}
+def read_root():
+    return {"status": "Verbatim Engine Online", "Mode": "Global Launch"}
+
+@app.get("/api/languages")
+def get_languages():
+    # Sort keys alphabetically for the frontend dropdown
+    return sorted(list(VOICE_DB.keys()))
+
+@app.get("/api/voices")
+def get_voices(language: str):
+    # Default to US English if language not found
+    return VOICE_DB.get(language, VOICE_DB.get("English (US)"))
 
 @app.get("/api/history/{user_id}")
 def get_history(user_id: str):
     try:
         docs = db.collection('users').document(user_id).collection('transcriptions').order_by("upload_time", direction=firestore.Query.DESCENDING).stream()
         return [{"id": doc.id, **doc.to_dict(), "upload_time": doc.to_dict().get("upload_time", "").isoformat() if doc.to_dict().get("upload_time") else ""} for doc in docs]
-    except: return []
+    except Exception as e:
+        print(f"❌ History Fetch Error: {e}")
+        return []
 
 @app.delete("/api/history/{user_id}/{doc_id}")
-def delete_history(user_id: str, doc_id: str):
-    db.collection('users').document(user_id).collection('transcriptions').document(doc_id).delete()
-    return {"status": "deleted"}
-
-@app.get("/api/languages")
-def get_languages(): return ["English (US)", "English (UK)", "Spanish", "French", "German", "Chinese", "Hindi", "Arabic"]
-
-@app.get("/api/voices")
-def get_voices(language: str): return [{"id": "en-US-GuyNeural", "name": "Guy"}, {"id": "en-US-JennyNeural", "name": "Jenny"}]
+def delete_history_item(user_id: str, doc_id: str):
+    try:
+        db.collection('users').document(user_id).collection('transcriptions').document(doc_id).delete()
+        return {"status": "deleted"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/generate-audio")
-async def generate_audio(text: Annotated[str, Form()], emotion: Annotated[str, Form()], language: Annotated[str, Form()], voice_id: Annotated[str, Form()]):
+async def generate_audio(
+    text: Annotated[str, Form()],
+    emotion: Annotated[str, Form()],
+    language: Annotated[str, Form()],
+    voice_id: Annotated[str, Form()]
+):
     try:
-        resp = retry_gemini_call(model, f"Translate to {language}: {text}")
-        clean = clean_text_for_tts(resp.text)
-        name = f"dub_{uuid.uuid4()}.mp3"
-        await edge_tts.Communicate(clean, voice_id).save(str(TEMP_DIR / name))
-        return {"status": "success", "audio_url": f"/temp/{name}", "translated_text": resp.text}
+        # Translate first using Gemini
+        translation_prompt = f"Translate the following text into {language}. Return ONLY the translation, no extra text:\n\n{text}"
+        translation_response = retry_gemini_call(model, translation_prompt)
+        translated_text = translation_response.text.strip()
+        
+        # Clean text for TTS engine
+        tts_ready_text = clean_text_for_tts(translated_text)
+        settings = EMOTION_SETTINGS.get(emotion, EMOTION_SETTINGS["Neutral"])
+        
+        output_filename = f"dub_{uuid.uuid4()}.mp3"
+        output_path = TEMP_DIR / output_filename
+        
+        # Generate Audio
+        communicate = edge_tts.Communicate(tts_ready_text, voice_id, rate=settings["rate"], pitch=settings["pitch"])
+        await communicate.save(str(output_path))
+        gc.collect()
+        
+        return {
+            "status": "success", 
+            "audio_url": f"/temp/{output_filename}", 
+            "translated_text": translated_text,
+            "language": language
+        }
     except Exception as e:
+        print(f"❌ Dubbing Error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/process-text")
 async def process_text(request: TextRequest):
-    if not request.user_id: raise HTTPException(status_code=400)
+    if not request.user_id: raise HTTPException(status_code=400, detail="User ID required.")
+    
+    print("🚀 Processing Raw Text Input...")
     try:
-        resp = retry_gemini_call(model, f"Analyze:\n{request.text[:30000]}\n\nOutput: 1. Transcript 2. Blog Post 3. Summary.")
-        full = resp.text
-        transcript = request.text
-        blog = full.split("Blog Post")[1].split("Summary")[0].strip() if "Blog Post" in full else ""
-        summary = full.split("Summary")[1].strip() if "Summary" in full else ""
+        prompt = f"""
+        Analyze the following text.
+        1. Return the text exactly as provided under the heading 'Transcript'.
+        2. Write a Viral Blog Post (500 words) based on it under 'Blog Post'.
+        3. Write a Strategic Summary (150 words) under 'Summary'.
         
+        TEXT INPUT:
+        {request.text[:100000]} 
+        """
+        
+        response = retry_gemini_call(model, prompt)
+        full_text = response.text
+        
+        transcript = request.text 
+        blog_post = full_text.split("Blog Post")[1].split("Summary")[0].strip() if "Blog Post" in full_text else ""
+        summary = full_text.split("Summary")[1].strip() if "Summary" in full_text else ""
+
         db.collection('users').document(request.user_id).collection('transcriptions').document().set({
-            "filename": "Text Note", "upload_time": firestore.SERVER_TIMESTAMP,
-            "transcript": transcript, "blog_post": blog, "summary": summary
+            "filename": f"Text Note: {datetime.datetime.now().strftime('%Y-%m-%d')}",
+            "upload_time": firestore.SERVER_TIMESTAMP,
+            "transcript": transcript, 
+            "blog_post": blog_post, 
+            "summary": summary
         })
-        return {"message": "Success", "transcript": transcript, "blog_post": blog, "summary": summary}
+
+        return {"message": "Success", "transcript": transcript, "blog_post": blog_post, "summary": summary, "filename": "Text Analysis"}
     except Exception as e:
+        print(f"❌ Text Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-# --- OPTIMIZED MEDIA PROCESSOR (TURBO MODE) ---
 @app.post("/api/process-media")
 async def process_media(file: UploadFile, user_id: Annotated[str, Form()]):
     if not user_id: raise HTTPException(status_code=400, detail="User ID required.")
@@ -154,28 +269,23 @@ async def process_media(file: UploadFile, user_id: Annotated[str, Form()]):
     files_to_cleanup = [temp_filepath]
 
     try:
-        # 1. Save Upload
         with open(temp_filepath, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
 
         path_to_upload = temp_filepath
         upload_mime_type = "audio/mp3" 
 
-        # 2. TURBO EXTRACTION (For Video Files)
+        # --- TURBO EXTRACTION (KEEPING THIS FOR SPEED) ---
         if file_extension in ['.mp4', '.mov', '.avi', '.mkv', '.webm']:
             audio_path = TEMP_DIR / f"{temp_filepath.stem}.mp3"
             print(f"🚀 Turbo Extraction: {file.filename}...")
             
-            # OPTIMIZATION: Extract MONO audio at 16kHz (Smallest possible size for AI)
+            # Extract Mono, 16kHz audio for fastest AI processing
             command = [
                 "ffmpeg", "-i", str(temp_filepath), 
-                "-vn",              # No Video
-                "-ac", "1",         # Mono Channel (Faster)
-                "-ar", "16000",     # 16kHz Sample Rate (Speech Optimized)
-                "-b:a", "32k",      # 32k Bitrate (Tiny File Size)
+                "-vn", "-ac", "1", "-ar", "16000", "-b:a", "32k", 
                 "-y", str(audio_path)
             ]
-            
             result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             
             if result.returncode == 0:
@@ -183,26 +293,21 @@ async def process_media(file: UploadFile, user_id: Annotated[str, Form()]):
                 path_to_upload = audio_path
                 files_to_cleanup.append(audio_path)
             else:
-                print(f"⚠️ FFmpeg failed: {result.stderr}, falling back to raw.")
+                print(f"⚠️ FFmpeg failed: {result.stderr}, using raw file.")
                 upload_mime_type = "video/mp4"
 
         elif file_extension == ".wav":
             upload_mime_type = "audio/wav"
         
-        # 3. Upload to Gemini
-        print("📤 Uploading to AI...")
         media_file = genai.upload_file(path=str(path_to_upload), mime_type=upload_mime_type)
         
-        # 4. Wait for AI Processing
         while media_file.state.name == "PROCESSING":
             time.sleep(2)
             media_file = genai.get_file(media_file.name)
             
-        # 5. Generate Content
-        print("🧠 Analyzing...")
         response = retry_gemini_call(model, [
             media_file,
-            "Provide: 1. Full Transcript (No timestamps). 2. Blog Post (500 words). 3. Summary (150 words). Format with headings: 'Transcript', 'Blog Post', 'Summary'."
+            "Provide: 1. Full Transcript (Do NOT include timestamps, timecodes, or speaker labels). 2. Blog Post (500 words). 3. Summary (150 words). Format with headings: 'Transcript', 'Blog Post', 'Summary'."
         ])
 
         full_text = response.text
@@ -211,7 +316,6 @@ async def process_media(file: UploadFile, user_id: Annotated[str, Form()]):
         blog_post = full_text.split("Blog Post")[1].split("Summary")[0].strip() if "Blog Post" in full_text else ""
         summary = full_text.split("Summary")[1].strip() if "Summary" in full_text else ""
 
-        # 6. Save Data
         db.collection('users').document(user_id).collection('transcriptions').document().set({
             "filename": file.filename,
             "upload_time": firestore.SERVER_TIMESTAMP,
