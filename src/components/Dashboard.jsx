@@ -149,19 +149,25 @@ const Dashboard = ({ user: currentUser }) => {
       if (!linkUrl || !currentUser) return;
       setIsLoading(true);
       setError(null);
-      setExtractionStatus("Downloading via Swarm Network...");
+      setExtractionStatus("Connecting to Neural Relay...");
       
       try {
-          const response = await axios.post(`${CLOUD_API_BASE}/api/process-link`, {
-              url: linkUrl,
-              user_id: currentUser.uid
-          });
+          const response = await axios.post(
+              `${CLOUD_API_BASE}/api/process-link`, 
+              {
+                  url: linkUrl,
+                  user_id: currentUser.uid
+              },
+              { timeout: 300000 } // <--- CRITICAL: 5 MINUTE TIMEOUT FIX
+          );
           setProcessingResults(response.data);
           setExtractionStatus("");
           fetchHistory();
       } catch (err) {
           console.error(err);
-          setError("Failed to retrieve link content. Please try another link or upload the file directly.");
+          // Show meaningful error
+          const errorMsg = err.response?.data?.detail || "Connection timed out. The video might be too long or the server is busy.";
+          setError(errorMsg);
       } finally {
           setIsLoading(false);
       }
@@ -611,7 +617,7 @@ const Dashboard = ({ user: currentUser }) => {
                         </div>
                         <audio controls src={generatedAudio} className="w-full mb-8 h-12" autoPlay />
                         
-                        {/* --- NEW: DOWNLOAD BUTTON ADDED HERE --- */}
+                        {/* --- FIXED: DOWNLOAD BUTTON VISIBLE --- */}
                         <div className="flex justify-end mb-6">
                             <button 
                                 onClick={handleDownloadAudio}
