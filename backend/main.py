@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Annotated
 import datetime
 
-# --- SUPPRESS DEPRECATION WARNINGS ---
+# --- SUPPRESS WARNINGS ---
 warnings.simplefilter("ignore", category=FutureWarning)
 
 # --- IMPORTS ---
@@ -64,16 +64,22 @@ genai.configure(api_key=GEMINI_API_KEY)
 MODEL_NAME = "gemini-2.5-flash" 
 model = genai.GenerativeModel(MODEL_NAME)
 
-# --- HELPERS (IMPROVED CLEANER) ---
+# --- HELPERS (IMPROVED FORMATTING) ---
 def clean_transcript(text):
-    # Aggressive Timestamp Removal
-    text = re.sub(r'\[?\d{1,2}:\d{2}(?::\d{2})?\]?', '', text) # 00:00 or [00:00]
-    text = re.sub(r'\*?\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}\*?', '', text) # 00:00 - 00:10
-    text = re.sub(r'\*\d+:\d+\s*-\s*\d+:\d+\*', '', text) # Bold timestamps
-    text = re.sub(r'Frame\s+\d+', '', text, flags=re.IGNORECASE) # "Frame 200"
-    return re.sub(r'\s+', ' ', text).strip() # Clean extra spaces
+    # Remove timestamps but KEEP paragraph breaks
+    text = re.sub(r'\[?\d{1,2}:\d{2}(?::\d{2})?\]?', '', text) 
+    text = re.sub(r'\*?\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}\*?', '', text)
+    text = re.sub(r'Frame\s+\d+', '', text, flags=re.IGNORECASE)
+    
+    # Fix spacing but PRESERVE newlines for paragraphs
+    # This replaces multiple spaces with one, but leaves newlines alone
+    lines = [line.strip() for line in text.split('\n')]
+    # Rejoin lines that have content, preserving structure
+    text = '\n'.join([l for l in lines if l]) 
+    return text
 
 def clean_text_for_tts(text):
+    # TTS needs cleaner text without markdown symbols
     return re.sub(r'[#*_]+', '', text).strip()
 
 def retry_gemini_call(model_instance, prompt_input, retries=3, delay=5):
@@ -86,7 +92,7 @@ def retry_gemini_call(model_instance, prompt_input, retries=3, delay=5):
                 continue
             raise e
 
-# --- 2. MASSIVE GLOBAL VOICE DATABASE (60+ LANGUAGES) ---
+# --- 2. VOICE DATABASE ---
 VOICE_DB = {
     # --- SPECIAL AFRICAN LANGUAGES (GOOGLE CLOUD) ---
     "Yoruba (Nigeria)": [{"id": "yo-NG-Standard-A", "name": "Bunmi (Native Yoruba)", "engine": "google", "fallback": "en-NG-EzinneNeural"}],
@@ -161,17 +167,11 @@ EMOTION_SETTINGS = {
     "Slow": {"rate": "-25%", "pitch": "+0Hz"}
 }
 
-# --- 3. APP INITIALIZATION ---
+# --- 3. APP INIT ---
 app = FastAPI()
 app.add_middleware(
-    CORSMiddleware, 
-    allow_origins=["*"], 
-    allow_credentials=True, 
-    allow_methods=["*"], 
-    allow_headers=["*"], 
-    expose_headers=["*"]
+    CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"], expose_headers=["*"]
 )
-
 TEMP_DIR = Path("temp")
 TEMP_DIR.mkdir(exist_ok=True)
 app.mount("/temp", StaticFiles(directory="temp"), name="temp")
@@ -181,175 +181,112 @@ class TextRequest(BaseModel):
     user_id: str
 
 # --- 4. ENDPOINTS ---
-
 @app.get("/")
-def read_root():
-    return {"status": "Verbatim Engine Online", "Mode": "Global 50+ Languages"}
+def read_root(): return {"status": "Online", "Mode": "Global 50+ Languages"}
 
 @app.get("/api/languages")
-def get_languages():
-    return sorted(list(VOICE_DB.keys()))
+def get_languages(): return sorted(list(VOICE_DB.keys()))
 
 @app.get("/api/voices")
-def get_voices(language: str):
-    return VOICE_DB.get(language, VOICE_DB.get("English (US)"))
+def get_voices(language: str): return VOICE_DB.get(language, VOICE_DB.get("English (US)"))
 
 @app.get("/api/history/{user_id}")
 def get_history(user_id: str):
     try:
         docs = db.collection('users').document(user_id).collection('transcriptions').order_by("upload_time", direction=firestore.Query.DESCENDING).stream()
         return [{"id": doc.id, **doc.to_dict(), "upload_time": doc.to_dict().get("upload_time", "").isoformat() if doc.to_dict().get("upload_time") else ""} for doc in docs]
-    except Exception as e:
-        print(f"❌ History Fetch Error: {e}")
-        return []
+    except: return []
 
 @app.delete("/api/history/{user_id}/{doc_id}")
-def delete_history_item(user_id: str, doc_id: str):
-    try:
-        db.collection('users').document(user_id).collection('transcriptions').document(doc_id).delete()
-        return {"status": "deleted"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+def delete_history(user_id: str, doc_id: str):
+    db.collection('users').document(user_id).collection('transcriptions').document(doc_id).delete()
+    return {"status": "deleted"}
 
-# --- GOOGLE CLOUD TTS ENGINE ---
+# --- GOOGLE TTS ---
 async def generate_google_tts(text, voice_id, output_path):
     url = f"https://texttospeech.googleapis.com/v1/text:synthesize?key={GEMINI_API_KEY}"
     lang_code = "-".join(voice_id.split("-")[:2])
-    payload = {
-        "input": {"text": text},
-        "voice": {"languageCode": lang_code, "name": voice_id},
-        "audioConfig": {"audioEncoding": "MP3"}
-    }
-    
+    payload = {"input": {"text": text}, "voice": {"languageCode": lang_code, "name": voice_id}, "audioConfig": {"audioEncoding": "MP3"}}
     try:
-        response = requests.post(url, json=payload, timeout=15)
-        if response.status_code == 200:
-            audio_content = response.json().get("audioContent")
-            if audio_content:
-                with open(output_path, "wb") as out:
-                    out.write(base64.b64decode(audio_content))
-                return True
-        else:
-            print(f"❌ Google TTS Error: {response.text}")
-    except Exception as e:
-        print(f"❌ Google Connection Error: {e}")
-        
+        r = requests.post(url, json=payload, timeout=15)
+        if r.status_code == 200:
+            with open(output_path, "wb") as f: f.write(base64.b64decode(r.json()["audioContent"]))
+            return True
+    except: pass
     return False
 
 @app.post("/api/generate-audio")
-async def generate_audio(
-    text: Annotated[str, Form()],
-    emotion: Annotated[str, Form()],
-    language: Annotated[str, Form()],
-    voice_id: Annotated[str, Form()]
-):
+async def generate_audio(text: Annotated[str, Form()], emotion: Annotated[str, Form()], language: Annotated[str, Form()], voice_id: Annotated[str, Form()]):
     try:
-        # 1. Translate (Gemini 2.5 Flash)
-        translation_prompt = f"Translate the following text into {language}. Return ONLY the translation, no extra text:\n\n{text}"
-        translation_response = retry_gemini_call(model, translation_prompt)
-        translated_text = translation_response.text.strip()
-        tts_ready_text = clean_text_for_tts(translated_text)
+        # Translate with instructions to keep some structure for TTS if needed, though usually TTS wants plain text.
+        # Ideally, we just translate.
+        trans = retry_gemini_call(model, f"Translate to {language}:\n{text}").text.strip()
+        clean = clean_text_for_tts(trans)
+        path = TEMP_DIR / f"dub_{uuid.uuid4()}.mp3"
         
-        output_filename = f"dub_{uuid.uuid4()}.mp3"
-        output_path = TEMP_DIR / output_filename
-        settings = EMOTION_SETTINGS.get(emotion, EMOTION_SETTINGS["Neutral"])
-
-        # 2. Identify Engine & Fallback
-        selected_voice_data = next((v for v in VOICE_DB.get(language, []) if v["id"] == voice_id), None)
-        engine = selected_voice_data.get("engine", "edge") if selected_voice_data else "edge"
-        fallback_id = selected_voice_data.get("fallback", "en-US-GuyNeural") if selected_voice_data else "en-US-GuyNeural"
-
-        print(f"🎤 Generating: {language} | Engine: {engine} | Voice: {voice_id}")
-
-        # 3. Generate Audio
+        voice_data = next((v for v in VOICE_DB.get(language, []) if v["id"] == voice_id), None)
+        engine = voice_data.get("engine", "edge") if voice_data else "edge"
+        fallback = voice_data.get("fallback", "en-US-GuyNeural") if voice_data else "en-US-GuyNeural"
+        
         success = False
+        if engine == "google": success = await generate_google_tts(clean, voice_id, str(path))
+        if not success: await edge_tts.Communicate(clean, fallback, rate=EMOTION_SETTINGS[emotion]["rate"], pitch=EMOTION_SETTINGS[emotion]["pitch"]).save(str(path))
         
-        if engine == "google":
-            success = await generate_google_tts(tts_ready_text, voice_id, output_path)
-            
-        if not success:
-            if engine == "google": print(f"⚠️ Google Engine failed. Switching to Fallback: {fallback_id}")
-            # Edge Fallback (Crash Proof)
-            communicate = edge_tts.Communicate(tts_ready_text, fallback_id if engine == "google" else voice_id, rate=settings["rate"], pitch=settings["pitch"])
-            await communicate.save(str(output_path))
-        
-        gc.collect()
-        
-        return {
-            "status": "success", 
-            "audio_url": f"/temp/{output_filename}", 
-            "translated_text": translated_text,
-            "language": language
-        }
+        return {"status": "success", "audio_url": f"/temp/{path.name}", "translated_text": trans, "language": language}
     except Exception as e:
-        print(f"❌ Critical Voice Error: {str(e)}")
-        raise HTTPException(status_code=500, detail="Voice generation failed. Please try a different language.")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/process-text")
 async def process_text(request: TextRequest):
     if not request.user_id: raise HTTPException(status_code=400)
     try:
-        prompt = f"Analyze:\n{request.text[:50000]}\n\nOutput: 1. Transcript 2. Blog Post 3. Summary."
-        response = retry_gemini_call(model, prompt)
-        full_text = response.text
+        # Prompt specifically asks for FORMATTING
+        prompt = f"Analyze:\n{request.text[:50000]}\n\nOutput: 1. Transcript (Cleaned, use paragraphs). 2. Blog Post (Use proper paragraphs and headings). 3. Summary (Bulleted list)."
+        resp = retry_gemini_call(model, prompt).text
         
-        transcript = request.text 
-        blog_post = full_text.split("Blog Post")[1].split("Summary")[0].strip() if "Blog Post" in full_text else ""
-        summary = full_text.split("Summary")[1].strip() if "Summary" in full_text else ""
-
+        transcript = request.text
+        blog = resp.split("Blog Post")[1].split("Summary")[0].strip() if "Blog Post" in resp else ""
+        summary = resp.split("Summary")[1].strip() if "Summary" in resp else ""
+        
         db.collection('users').document(request.user_id).collection('transcriptions').document().set({
             "filename": f"Note: {datetime.datetime.now().strftime('%m-%d %H:%M')}",
             "upload_time": firestore.SERVER_TIMESTAMP,
-            "transcript": transcript, "blog_post": blog_post, "summary": summary
+            "transcript": transcript, "blog_post": blog, "summary": summary
         })
-        return {"message": "Success", "transcript": transcript, "blog_post": blog_post, "summary": summary}
-    except Exception as e:
-        print(f"Text Error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        return {"message": "Success", "transcript": transcript, "blog_post": blog, "summary": summary}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/process-media")
 async def process_media(file: UploadFile, user_id: Annotated[str, Form()]):
     if not user_id: raise HTTPException(status_code=400)
-    unique_filename = f"{uuid.uuid4()}{Path(file.filename).suffix}"
-    temp_filepath = TEMP_DIR / unique_filename
-    files_to_cleanup = [temp_filepath]
-
+    path = TEMP_DIR / f"{uuid.uuid4()}{Path(file.filename).suffix}"
     try:
-        with open(temp_filepath, "wb") as buffer: shutil.copyfileobj(file.file, buffer)
-        path_to_upload = temp_filepath
-        upload_mime_type = "audio/mp3" 
-
-        if Path(file.filename).suffix.lower() in ['.mp4', '.mov', '.avi', '.mkv', '.webm']:
-            audio_path = TEMP_DIR / f"{temp_filepath.stem}.mp3"
-            print(f"🚀 Turbo Extraction: {file.filename}")
-            command = ["ffmpeg", "-i", str(temp_filepath), "-vn", "-ac", "1", "-ar", "16000", "-b:a", "32k", "-y", str(audio_path)]
-            if subprocess.run(command).returncode == 0:
-                path_to_upload = audio_path
-                files_to_cleanup.append(audio_path)
-            else:
-                upload_mime_type = "video/mp4"
-        elif Path(file.filename).suffix.lower() == ".wav":
-            upload_mime_type = "audio/wav"
+        with open(path, "wb") as b: shutil.copyfileobj(file.file, b)
         
-        media_file = genai.upload_file(path=str(path_to_upload), mime_type=upload_mime_type)
-        while media_file.state.name == "PROCESSING": time.sleep(2); media_file = genai.get_file(media_file.name)
+        # Turbo Extract
+        audio_path = path
+        if path.suffix.lower() in ['.mp4', '.mov', '.avi', '.mkv']:
+            audio_path = path.with_suffix('.mp3')
+            subprocess.run(["ffmpeg", "-i", str(path), "-vn", "-ac", "1", "-ar", "16000", "-b:a", "32k", "-y", str(audio_path)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         
-        resp = retry_gemini_call(model, [media_file, "Provide: 1. Full Transcript 2. Blog Post 3. Summary."])
-        full = resp.text
-        trans = full.split("Transcript")[1].split("Blog Post")[0].strip() if "Transcript" in full else ""
+        media = genai.upload_file(path=str(audio_path), mime_type="audio/mp3")
+        while media.state.name == "PROCESSING": time.sleep(1); media = genai.get_file(media.name)
+        
+        # PROMPT FOR BETTER FORMATTING
+        resp = retry_gemini_call(model, [media, "Provide: 1. Full Transcript (No timestamps, use paragraphs). 2. Blog Post (Structured with headings). 3. Summary (Bulleted list)."]).text
+        
+        trans = resp.split("Transcript")[1].split("Blog Post")[0].strip() if "Transcript" in resp else ""
         clean = clean_transcript(trans)
-        blog = full.split("Blog Post")[1].split("Summary")[0].strip() if "Blog Post" in full else ""
-        summ = full.split("Summary")[1].strip() if "Summary" in full else ""
-
+        blog = resp.split("Blog Post")[1].split("Summary")[0].strip() if "Blog Post" in resp else ""
+        summ = resp.split("Summary")[1].strip() if "Summary" in resp else ""
+        
         db.collection('users').document(user_id).collection('transcriptions').document().set({
             "filename": file.filename, "upload_time": firestore.SERVER_TIMESTAMP,
             "transcript": clean, "blog_post": blog, "summary": summ
         })
         return {"message": "Success", "transcript": clean, "blog_post": blog, "summary": summ}
-    except Exception as e:
-        print(f"Media Error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-    finally:
-        for p in files_to_cleanup: 
-            if p.exists(): os.remove(p)
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+    finally: 
+        if path.exists(): os.remove(path)
+        if path.with_suffix('.mp3').exists() and path.suffix != '.mp3': os.remove(path.with_suffix('.mp3'))
         gc.collect()

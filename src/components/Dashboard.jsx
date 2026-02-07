@@ -3,13 +3,16 @@ import axios from 'axios';
 import { 
   LogOut, Upload, FileAudio, CheckCircle, AlertCircle, Loader2, 
   FileText, AlignLeft, Mic, Globe, Play, Languages, User as UserIcon, Cpu, 
-  XCircle, History, Download, ChevronRight, X, Trash2, AlertTriangle, Edit3
+  XCircle, History, Download, ChevronRight, X, Trash2, AlertTriangle, Edit3,
+  FileType
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import { auth } from '../firebase';
-// REMOVED: extractAudio to prevent mobile crashes
-// import { extractAudio } from '../utils/audioExtractor'; 
+// IMPORT NEW LIBRARIES
+import { jsPDF } from "jspdf";
+import { Document, Packer, Paragraph, TextRun } from "docx";
+import { saveAs } from "file-saver";
 
 const CLOUD_API_BASE = "https://verbatim-backend.onrender.com";
 
@@ -17,25 +20,19 @@ const Dashboard = ({ user: currentUser }) => {
   const [selectedFile, setSelectedFile] = useState(null);
   const [activeTab, setActiveTab] = useState("file"); 
   const [rawText, setRawText] = useState("");
-
   const [uploadProgress, setUploadProgress] = useState(0);
   const [processingResults, setProcessingResults] = useState(null);
-  
   const [editTranscript, setEditTranscript] = useState("");
   const [editSummary, setEditSummary] = useState("");
   const [editBlog, setEditBlog] = useState("");
-
   const [isLoading, setIsLoading] = useState(false);
   const [extractionStatus, setExtractionStatus] = useState(""); 
   const [error, setError] = useState(null);
   const [studioError, setStudioError] = useState(null);
-  
   const [history, setHistory] = useState([]);
   const [showHistory, setShowHistory] = useState(false);
-  
   const [itemToDelete, setItemToDelete] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  
   const fileInputRef = useRef(null);
 
   // STUDIO STATE
@@ -51,17 +48,13 @@ const Dashboard = ({ user: currentUser }) => {
   const [isDownloading, setIsDownloading] = useState(false); 
 
   useEffect(() => {
-    axios.get(`${CLOUD_API_BASE}/api/languages`)
-      .then(res => {
-        setAvailableLanguages(res.data);
-        axios.get(`${CLOUD_API_BASE}/api/voices?language=English (US)`)
-             .then(v => {
-                 setAvailableVoices(v.data);
-                 if(v.data.length > 0) setSelectedVoiceId(v.data[0].id);
-             });
-      })
-      .catch(err => console.error("Cloud Connection Error:", err));
-
+    axios.get(`${CLOUD_API_BASE}/api/languages`).then(res => {
+      setAvailableLanguages(res.data);
+      axios.get(`${CLOUD_API_BASE}/api/voices?language=English (US)`).then(v => {
+         setAvailableVoices(v.data);
+         if(v.data.length > 0) setSelectedVoiceId(v.data[0].id);
+      });
+    });
     if (currentUser?.uid) fetchHistory();
   }, [currentUser]);
 
@@ -69,7 +62,7 @@ const Dashboard = ({ user: currentUser }) => {
   const cleanTextArtifacts = (text) => {
     if (!text) return "";
     return text
-      .replace(/\[?\d{1,2}:\d{2}(:\d{2})?\]?/g, '') // Removes 00:00, [00:00], 00:00:00
+      .replace(/\[?\d{1,2}:\d{2}(:\d{2})?\]?/g, '') // Removes 00:00
       .replace(/\*?\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}\*?/g, '') // Removes 00:00 - 00:10
       .replace(/(?:Frame|Time)\s*\d+/gi, '') // Removes "Frame 200"
       .replace(/\s+/g, ' ') // Collapses extra spaces
@@ -78,7 +71,6 @@ const Dashboard = ({ user: currentUser }) => {
 
   useEffect(() => {
     if (processingResults) {
-        // Apply cleaning immediately when results arrive
         setEditTranscript(cleanTextArtifacts(processingResults.transcript || ""));
         setEditSummary(processingResults.summary || "");
         setEditBlog(processingResults.blog_post || "");
@@ -86,22 +78,14 @@ const Dashboard = ({ user: currentUser }) => {
   }, [processingResults]);
 
   const fetchHistory = async () => {
-    try {
-      const res = await axios.get(`${CLOUD_API_BASE}/api/history/${currentUser.uid}`);
-      setHistory(res.data);
-    } catch (err) {
-      console.error("Failed to load history", err);
-    }
+    const res = await axios.get(`${CLOUD_API_BASE}/api/history/${currentUser.uid}`);
+    setHistory(res.data);
   };
 
   const fetchVoices = async (language) => {
-    try {
-      const res = await axios.get(`${CLOUD_API_BASE}/api/voices?language=${encodeURIComponent(language)}`);
-      setAvailableVoices(res.data);
-      if (res.data.length > 0) setSelectedVoiceId(res.data[0].id);
-    } catch (err) {
-      console.error("Failed to fetch voices", err);
-    }
+    const res = await axios.get(`${CLOUD_API_BASE}/api/voices?language=${encodeURIComponent(language)}`);
+    setAvailableVoices(res.data);
+    if (res.data.length > 0) setSelectedVoiceId(res.data[0].id);
   };
 
   const handleLanguageChange = (e) => {
@@ -122,6 +106,7 @@ const Dashboard = ({ user: currentUser }) => {
     }
   };
 
+  // --- DOWNLOAD HANDLERS ---
   const downloadText = (filename, content) => {
     const element = document.createElement("a");
     const file = new Blob([content], {type: 'text/plain'});
@@ -130,6 +115,29 @@ const Dashboard = ({ user: currentUser }) => {
     document.body.appendChild(element);
     element.click();
     document.body.removeChild(element);
+  };
+
+  const downloadPDF = (filename, content) => {
+    const doc = new jsPDF();
+    const splitText = doc.splitTextToSize(content, 180);
+    doc.text(splitText, 10, 10);
+    doc.save(`${filename}.pdf`);
+  };
+
+  const downloadWord = (filename, content) => {
+    const doc = new Document({
+      sections: [{
+        properties: {},
+        children: [
+          new Paragraph({
+            children: [new TextRun(content)],
+          }),
+        ],
+      }],
+    });
+    Packer.toBlob(doc).then((blob) => {
+      saveAs(blob, `${filename}.docx`);
+    });
   };
 
   const handleDownloadAudio = async () => {
@@ -146,12 +154,8 @@ const Dashboard = ({ user: currentUser }) => {
         link.click();
         link.remove();
         window.URL.revokeObjectURL(url);
-    } catch (error) {
-        console.error("Download failed:", error);
-        alert("Download failed.");
-    } finally {
-        setIsDownloading(false);
-    }
+    } catch { alert("Download failed."); } 
+    finally { setIsDownloading(false); }
   };
 
   const handleTextSubmit = async () => {
@@ -159,21 +163,13 @@ const Dashboard = ({ user: currentUser }) => {
       setIsLoading(true);
       setError(null);
       setExtractionStatus("Analyzing Text...");
-      
       try {
-          const response = await axios.post(`${CLOUD_API_BASE}/api/process-text`, {
-              text: rawText,
-              user_id: currentUser.uid
-          });
+          const response = await axios.post(`${CLOUD_API_BASE}/api/process-text`, { text: rawText, user_id: currentUser.uid });
           setProcessingResults(response.data);
           setExtractionStatus("");
           fetchHistory();
-      } catch (err) {
-          console.error(err);
-          setError("Failed to analyze text.");
-      } finally {
-          setIsLoading(false);
-      }
+      } catch (err) { setError("Failed to analyze text."); } 
+      finally { setIsLoading(false); }
   };
 
   const handleUpload = async (e) => {
@@ -185,9 +181,6 @@ const Dashboard = ({ user: currentUser }) => {
     setError(null);
     setExtractionStatus("Initializing secure upload..."); 
     
-    // --- MOBILE CRASH FIX: REMOVED CLIENT-SIDE EXTRACTION ---
-    // We now send the raw file directly to the server.
-    // The server's new Turbo Mode handles the heavy lifting.
     const fileToUpload = selectedFile; 
 
     try {
@@ -208,7 +201,7 @@ const Dashboard = ({ user: currentUser }) => {
                 setUploadProgress(percent);
                 if (percent === 100) setExtractionStatus("AI Engine: Analyzing Content...");
             },
-            timeout: 600000 // 10 Minutes timeout for large files
+            timeout: 600000 
         });
 
         setProcessingResults(response.data);
@@ -219,14 +212,10 @@ const Dashboard = ({ user: currentUser }) => {
     } catch (err) {
         console.error(err);
         setExtractionStatus(""); 
-        let displayError = "Upload failed. Please check your connection.";
+        let displayError = "Upload failed.";
         if (err.response) {
              if (err.response.status === 429) displayError = "Server Busy. Please wait 1 minute.";
-             else if (err.response.data && err.response.data.detail) {
-                 displayError = err.response.data.detail;
-             }
-        } else if (err.code === 'ECONNABORTED') {
-            displayError = "Timeout: The file is still processing. Check your History tab in a few minutes.";
+             else displayError = err.response.data.detail;
         }
         setError(displayError);
     } finally {
@@ -255,8 +244,7 @@ const Dashboard = ({ user: currentUser }) => {
       if (response.data.translated_text) setTranslatedText(response.data.translated_text);
     } catch (err) {
       console.error(err);
-      const msg = err.response?.data?.detail || "Voice generation failed.";
-      setStudioError(msg);
+      setStudioError("Voice generation failed.");
     } finally {
       setIsVoiceLoading(false);
     }
@@ -268,24 +256,17 @@ const Dashboard = ({ user: currentUser }) => {
       window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const confirmDelete = (e, item) => {
-    e.stopPropagation(); 
-    setItemToDelete(item);
-  };
+  const confirmDelete = (e, item) => { e.stopPropagation(); setItemToDelete(item); };
 
   const executeDelete = async () => {
-    if (!itemToDelete || !currentUser) return;
+    if (!itemToDelete) return;
     setIsDeleting(true);
     try {
       await axios.delete(`${CLOUD_API_BASE}/api/history/${currentUser.uid}/${itemToDelete.id}`);
       setHistory(prev => prev.filter(i => i.id !== itemToDelete.id));
       setItemToDelete(null); 
-    } catch (err) {
-      console.error("Delete failed:", err);
-      alert(`Failed to delete: ${err.response?.statusText || "Server Error"}`);
-    } finally {
-      setIsDeleting(false);
-    }
+    } catch (err) { alert(`Delete failed: ${err}`); } 
+    finally { setIsDeleting(false); }
   };
 
   const LOGO_PATH = "/logo.png";
@@ -452,12 +433,18 @@ const Dashboard = ({ user: currentUser }) => {
                       <div className="p-2 bg-verbatim-orange/20 rounded-lg"><Mic className="text-verbatim-orange" size={24} /></div>
                       <h3 className="text-xl md:text-2xl font-black">Smart Transcript</h3>
                   </div>
-                  <button onClick={() => downloadText(`${processingResults.filename}_transcript.txt`, editTranscript)} className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-sm font-bold transition-all w-full md:w-auto justify-center"><Download size={16}/> Save TXT</button>
+                  {/* --- DOWNLOAD OPTIONS --- */}
+                  <div className="flex gap-2 w-full md:w-auto">
+                    <button onClick={() => downloadText(`${processingResults.filename}_transcript.txt`, editTranscript)} className="flex items-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-xs font-bold transition-all flex-1 md:flex-none justify-center"><Download size={14}/> TXT</button>
+                    <button onClick={() => downloadPDF(`${processingResults.filename}_transcript`, editTranscript)} className="flex items-center gap-2 px-3 py-2 bg-red-500/20 hover:bg-red-500/40 text-red-400 rounded-lg text-xs font-bold transition-all flex-1 md:flex-none justify-center"><FileType size={14}/> PDF</button>
+                    <button onClick={() => downloadWord(`${processingResults.filename}_transcript`, editTranscript)} className="flex items-center gap-2 px-3 py-2 bg-blue-500/20 hover:bg-blue-500/40 text-blue-400 rounded-lg text-xs font-bold transition-all flex-1 md:flex-none justify-center"><FileText size={14}/> DOC</button>
+                  </div>
                 </div>
+                {/* --- WHITESPACE-PRE-WRAP FIX FOR FORMATTING --- */}
                 <textarea 
                     value={editTranscript}
                     onChange={(e) => setEditTranscript(e.target.value)}
-                    className="w-full h-96 bg-black/40 p-6 md:p-8 rounded-2xl text-gray-300 leading-relaxed font-mono text-xs md:text-sm border border-white/5 scrollbar-thin scrollbar-thumb-verbatim-orange resize-y focus:outline-none focus:border-verbatim-orange/50 transition-colors"
+                    className="w-full h-96 bg-black/40 p-6 md:p-8 rounded-2xl text-gray-300 leading-relaxed font-mono text-xs md:text-sm border border-white/5 scrollbar-thin scrollbar-thumb-verbatim-orange resize-y focus:outline-none focus:border-verbatim-orange/50 transition-colors whitespace-pre-wrap"
                 />
               </div>
 
@@ -465,19 +452,25 @@ const Dashboard = ({ user: currentUser }) => {
                 <div className="glass-card p-6 md:p-8 rounded-2xl h-full flex flex-col border border-white/10 bg-white/[0.02]">
                   <div className="flex items-center justify-between mb-4">
                       <h3 className="text-lg md:text-xl font-bold text-white flex items-center gap-2"><AlignLeft className="text-verbatim-orange" /> Summary</h3>
-                      <button onClick={() => downloadText(`${processingResults.filename}_summary.txt`, editSummary)} className="p-2 bg-white/10 hover:bg-white/20 rounded-lg transition-all"><Download size={16}/></button>
+                      <div className="flex gap-2">
+                        <button onClick={() => downloadText(`${processingResults.filename}_summary.txt`, editSummary)} className="p-2 bg-white/10 hover:bg-white/20 rounded-lg transition-all"><Download size={14}/></button>
+                        <button onClick={() => downloadWord(`${processingResults.filename}_summary`, editSummary)} className="p-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 rounded-lg transition-all"><FileText size={14}/></button>
+                      </div>
                   </div>
                   <textarea 
                       value={editSummary}
                       onChange={(e) => setEditSummary(e.target.value)}
-                      className="w-full h-[400px] md:h-[500px] bg-transparent text-gray-300 leading-relaxed resize-none focus:outline-none focus:ring-0 border-none scrollbar-thin scrollbar-thumb-verbatim-orange/30 text-base md:text-lg"
+                      className="w-full h-[400px] md:h-[500px] bg-transparent text-gray-300 leading-relaxed resize-none focus:outline-none focus:ring-0 border-none scrollbar-thin scrollbar-thumb-verbatim-orange/30 text-base md:text-lg whitespace-pre-wrap"
                   />
                 </div>
                 
                 <div className="glass-card p-6 md:p-8 rounded-2xl h-full flex flex-col border border-white/10 bg-white/[0.02]">
                   <div className="flex items-center justify-between mb-4">
                       <h3 className="text-lg md:text-xl font-bold text-white flex items-center gap-2"><FileText className="text-verbatim-orange" /> Blog Post</h3>
-                      <button onClick={() => downloadText(`${processingResults.filename}_blog.txt`, editBlog)} className="p-2 bg-white/10 hover:bg-white/20 rounded-lg transition-all"><Download size={16}/></button>
+                      <div className="flex gap-2">
+                        <button onClick={() => downloadText(`${processingResults.filename}_blog.txt`, editBlog)} className="p-2 bg-white/10 hover:bg-white/20 rounded-lg transition-all"><Download size={14}/></button>
+                        <button onClick={() => downloadWord(`${processingResults.filename}_blog`, editBlog)} className="p-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 rounded-lg transition-all"><FileText size={14}/></button>
+                      </div>
                   </div>
                   <textarea 
                       value={editBlog}
